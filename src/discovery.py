@@ -82,20 +82,21 @@ def _success_result(url: str, html: str, method: str) -> dict:
     }
 
 
-def _extract_links(html: str, base_url: str) -> list[str]:
+def _extract_links(html: str, base_url: str) -> list[dict]:
     """Extract all href links from *html*, resolved against *base_url*."""
     try:
         soup = BeautifulSoup(html, "html.parser")
     except Exception:
         return []
-    links: list[str] = []
+    links: list[dict] = []
     for tag in soup.find_all("a", href=True):
         href = tag["href"].strip()
         if not href or href.startswith(("#", "javascript:", "mailto:", "tel:")):
             continue
         try:
             absolute = urljoin(base_url, href)
-            links.append(absolute)
+            text = tag.get_text(strip=True)
+            links.append({"href": absolute, "text": text})
         except Exception:
             continue
     return links
