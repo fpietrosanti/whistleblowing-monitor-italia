@@ -147,6 +147,23 @@ AT_SUBSECTION_KEYWORDS = [
     "disposizioni generali",
 ]
 
+# Macro-sections that may contain WB/anticorruzione sub-pages
+CONTAINER_SECTION_KEYWORDS = [
+    "compliance",
+    "governance",
+    "etica",
+    "integrità",
+    "integrita",
+    "responsabilità sociale",
+    "responsabilita sociale",
+    "società trasparente",
+    "societa trasparente",
+    "organismo di vigilanza",
+    "odv",
+    "modello organizzativo",
+    "codice etico",
+]
+
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 
@@ -568,6 +585,99 @@ async def _try_at_drilldown(
     return None
 
 
+async def _try_container_drilldown(
+    base_url: str,
+    client: httpx.AsyncClient,
+    logger: logging.Logger,
+    scan_run_id: str,
+    cod_amm: str,
+    homepage_html: str | None = None,
+) -> dict | None:
+    """Strategy 4b: find container sections (Compliance, Governance, etc.) and drill in."""
+    if homepage_html:
+        html = homepage_html
+    else:
+        resp = await _fetch(client, base_url, logger)
+        if resp is None or resp.status_code != 200:
+            return None
+        html = resp.text
+
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception:
+        return None
+
+    container_urls: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for tag in soup.find_all("a", href=True):
+        text = tag.get_text(separator=" ", strip=True).lower()
+        href = tag["href"].strip().lower()
+        combined = text + " " + href
+        if any(kw in combined for kw in CONTAINER_SECTION_KEYWORDS):
+            absolute = urljoin(base_url, tag["href"].strip())
+            if absolute not in seen and _is_same_domain(absolute, base_url):
+                seen.add(absolute)
+                container_urls.append((absolute, tag.get_text(strip=True)))
+
+    if not container_urls:
+        return None
+
+    logger.debug(
+        "[%s] container_drilldown: %d sections found", cod_amm, len(container_urls)
+    )
+
+    for section_url, section_name in container_urls[:5]:
+        resp2 = await _fetch(client, section_url, logger)
+        if resp2 is None or resp2.status_code != 200:
+            continue
+        section_html = resp2.text
+
+        if _page_is_wb_relevant(section_html):
+            method = f"container:{section_name[:30]}"
+            logger.info("[%s] WB found via %s: %s", cod_amm, method, section_url)
+            save_raw_html(scan_run_id, cod_amm, "wb_page_container.html", section_html)
+            return _success_result(str(resp2.url), section_html, method)
+
+        # Drill into sub-links of the container page
+        try:
+            soup2 = BeautifulSoup(section_html, "html.parser")
+        except Exception:
+            continue
+
+        for tag in soup2.find_all("a", href=True):
+            sub_href = tag["href"].strip()
+            sub_text = tag.get_text(separator=" ", strip=True)
+            if not _link_matches_wb(sub_href, sub_text):
+                continue
+            sub_url = urljoin(section_url, sub_href)
+            if sub_url in seen:
+                continue
+            seen.add(sub_url)
+            is_ext = not _is_same_domain(sub_url, base_url)
+            if is_ext and not _link_has_high_keyword(sub_href, sub_text):
+                continue
+            resp3 = await _fetch(client, sub_url, logger)
+            if resp3 is None or resp3.status_code != 200:
+                continue
+            sub_html = resp3.text
+            if is_ext and _link_has_high_keyword(sub_url, sub_text):
+                method = f"container:{section_name[:20]}>{sub_text[:20]}"
+                logger.info("[%s] WB found via %s (ext): %s", cod_amm, method, sub_url)
+                save_raw_html(
+                    scan_run_id, cod_amm, "wb_page_container_sub.html", sub_html
+                )
+                return _success_result(str(resp3.url), sub_html, method)
+            if _page_is_wb_relevant(sub_html):
+                method = f"container:{section_name[:20]}>{sub_text[:20]}"
+                logger.info("[%s] WB found via %s: %s", cod_amm, method, sub_url)
+                save_raw_html(
+                    scan_run_id, cod_amm, "wb_page_container_sub.html", sub_html
+                )
+                return _success_result(str(resp3.url), sub_html, method)
+
+    return None
+
+
 async def _try_deep_crawl(
     base_url: str,
     client: httpx.AsyncClient,
@@ -761,6 +871,12 @@ async def discover_wb_section(
             ),
         ),
         (
+            "container_drilldown",
+            lambda: _try_container_drilldown(
+                base_url, http_client, logger, scan_run_id, cod_amm, homepage_html
+            ),
+        ),
+        (
             "deep_crawl",
             lambda: _try_deep_crawl(
                 base_url, http_client, logger, scan_run_id, cod_amm, homepage_html
@@ -782,5 +898,5 @@ async def discover_wb_section(
         except Exception as exc:
             logger.error("[%s] %s strategy failed: %s", cod_amm, name, exc)
 
-    logger.info("[%s] No WB section found after all 6 strategies", cod_amm)
+    logger.info("[%s] No WB section found after all 7 strategies", cod_amm)
     return _empty_result()
