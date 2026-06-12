@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS pa_scan (
     wb_policy_url           TEXT,
     wb_policy_pdf_path      TEXT,
     wb_policy_pdf_hash      TEXT,
+    discovery_method        TEXT,
     scan_duration_s         REAL,
     notes                   TEXT
 );
@@ -81,6 +82,22 @@ CREATE TABLE IF NOT EXISTS pa_scan_diff (
 );
 
 CREATE INDEX IF NOT EXISTS idx_pa_scan_diff_run ON pa_scan_diff(scan_run_id);
+
+CREATE TABLE IF NOT EXISTS rpct_anac (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    anac_id             INTEGER,
+    cf_ente             TEXT NOT NULL,
+    denominazione_ente  TEXT,
+    cod_amm             TEXT REFERENCES pa(cod_amm),
+    rpct_nome           TEXT,
+    rpct_cognome        TEXT,
+    rpct_nome_completo  TEXT,
+    link_atto_nomina    TEXT,
+    data_nomina         TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_rpct_anac_cf ON rpct_anac(cf_ente);
+CREATE INDEX IF NOT EXISTS idx_rpct_anac_cod ON rpct_anac(cod_amm);
 
 CREATE TABLE IF NOT EXISTS scan_error_log (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,

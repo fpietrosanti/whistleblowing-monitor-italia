@@ -113,6 +113,7 @@ def _save_pa_scan(scan_run_id: int, cod_amm: str, results: dict):
                 wb_email, wb_phone,
                 wb_policy_visible, wb_policy_url,
                 wb_policy_pdf_path, wb_policy_pdf_hash,
+                discovery_method,
                 scan_duration_s, notes
             ) VALUES (
                 ?, ?, ?,
@@ -126,6 +127,7 @@ def _save_pa_scan(scan_run_id: int, cod_amm: str, results: dict):
                 ?, ?,
                 ?, ?,
                 ?, ?,
+                ?,
                 ?, ?
             )""",
             (
@@ -158,6 +160,7 @@ def _save_pa_scan(scan_run_id: int, cod_amm: str, results: dict):
                 results.get("wb_policy_url"),
                 results.get("wb_policy_pdf_path"),
                 results.get("wb_policy_pdf_hash"),
+                results.get("discovery_method"),
                 results.get("scan_duration_s"),
                 results.get("notes"),
             ),
@@ -245,10 +248,12 @@ async def scan_single_pa(
 
         # ---- Step 2: discovery ----
         discovery = await discover_wb_section(
-            cod_amm, scan_run_id_str, site_url, http_client, pa_logger
+            cod_amm, scan_run_id_str, site_url, http_client, pa_logger,
+            homepage_html=homepage_html,
         )
         results["wb_section_found"] = discovery.get("wb_section_found", 0)
         results["wb_section_url"] = discovery.get("wb_section_url")
+        results["discovery_method"] = discovery.get("discovery_method", "none")
 
         wb_page_html = discovery.get("wb_page_html", homepage_html)
         wb_links = discovery.get("wb_links", [])
