@@ -258,7 +258,11 @@ async def _try_sitemap(
         if resp is None or resp.status_code != 200:
             continue
 
-        save_http_debug(scan_run_id, cod_amm, "sitemap.xml", resp.text)
+        save_http_debug(
+            scan_run_id, cod_amm, "sitemap.xml",
+            sitemap_url, "GET", resp.status_code,
+            dict(resp.headers), 0, resp.text[:2000],
+        )
 
         # Extract all <loc> entries
         locs = loc_pattern.findall(resp.text)

@@ -167,6 +167,10 @@ async def extract_rpct_contacts(
         "wb_phone": None,
     }
 
+    if not wb_page_html:
+        logger.info("rpct: no HTML available for %s, skipping", cod_amm)
+        return result
+
     try:
         text = _get_text_blocks(wb_page_html)
     except Exception as exc:

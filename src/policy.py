@@ -109,6 +109,10 @@ async def download_wb_policy(
         "wb_policy_pdf_hash": None,
     }
 
+    if not wb_page_html:
+        logger.info("policy: no HTML available for %s, skipping", cod_amm)
+        return result
+
     try:
         candidates = _find_pdf_links(wb_page_html, wb_section_url)
     except Exception as exc:
