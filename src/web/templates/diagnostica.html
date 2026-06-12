@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+{% set active_page = "diagnostica" %}
+{% block title %}Diagnostica — Whistleblowing Monitor Italia{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Dashboard Diagnostica</h1>
+
+{# Run selector #}
+<div class="row mb-4">
+    <div class="col-md-4">
+        <label for="runSelect" class="form-label fw-bold">Scan Run</label>
+        <select id="runSelect" class="form-select" onchange="location.href='/diagnostica?run_id='+this.value">
+            {% for r in scan_runs %}
+            <option value="{{ r.id }}" {% if r.id == run_id %}selected{% endif %}>
+                Run #{{ r.id }} — {{ (r.started_at or '')[:16] }} ({{ r.scanned_pa or 0 }}/{{ r.total_pa or 0 }} PA{% if r.errors %}, {{ r.errors }} err{% endif %})
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-8">
+        {% if current_run %}
+        <div class="card card-bg mt-4 mt-md-0">
+            <div class="card-body py-2">
+                <div class="row text-center">
+                    <div class="col"><small class="text-muted d-block">Stato</small><span class="badge {% if current_run.status == 'done' %}bg-success{% elif current_run.status == 'running' %}bg-primary{% else %}bg-danger{% endif %}">{{ current_run.status }}</span></div>
+                    <div class="col"><small class="text-muted d-block">PA totali</small><strong>{{ current_run.total_pa or 0 }}</strong></div>
+                    <div class="col"><small class="text-muted d-block">Scansionate</small><strong>{{ current_run.scanned_pa or 0 }}</strong></div>
+                    <div class="col"><small class="text-muted d-block">Errori</small><strong class="{% if current_run.errors %}text-danger{% endif %}">{{ current_run.errors or 0 }}</strong></div>
+                    <div class="col"><small class="text-muted d-block">Inizio</small><small>{{ (current_run.started_at or '')[:16] }}</small></div>
+                    <div class="col"><small class="text-muted d-block">Fine</small><small>{{ (current_run.finished_at or '—')[:16] }}</small></div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{# Completeness charts #}
+<div class="row g-3 mb-4">
+    <div class="col-lg-6">
+        <div class="card card-bg h-100">
+            <div class="card-body">
+                <h5 class="card-title">Completamento Raccolta Dati</h5>
+                <canvas id="chartCompleteness" height="260"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card card-bg h-100">
+            <div class="card-body">
+                <h5 class="card-title">Metodo di Discovery</h5>
+                <canvas id="chartMethods" height="260"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Pipeline funnel + RPCT #}
+<div class="row g-3 mb-4">
+    <div class="col-lg-8">
+        <div class="card card-bg h-100">
+            <div class="card-body">
+                <h5 class="card-title">Funnel Scansione</h5>
+                <canvas id="chartFunnel" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card card-bg h-100">
+            <div class="card-body">
+                <h5 class="card-title">RPCT ANAC</h5>
+                <dl class="row mb-0">
+                    <dt class="col-8">Totale RPCT ANAC</dt>
+                    <dd class="col-4 text-end"><strong>{{ rpct_stats.totale or 0 }}</strong></dd>
+                    <dt class="col-8">Riconciliati con PA</dt>
+                    <dd class="col-4 text-end"><strong class="text-success">{{ rpct_stats.riconciliati or 0 }}</strong></dd>
+                    <dt class="col-8">Non riconciliati</dt>
+                    <dd class="col-4 text-end"><strong class="text-warning">{{ rpct_stats.non_riconciliati or 0 }}</strong></dd>
+                    <dt class="col-8">Tasso riconciliazione</dt>
+                    <dd class="col-4 text-end">
+                        {% if rpct_stats.totale %}
+                        <strong>{{ "%.1f"|format(rpct_stats.riconciliati / rpct_stats.totale * 100) }}%</strong>
+                        {% else %}—{% endif %}
+                    </dd>
+                </dl>
+            </div>
+        </div>
+        {% if errors %}
+        <div class="card card-bg mt-3">
+            <div class="card-body">
+                <h5 class="card-title">Errori Frequenti</h5>
+                <div class="table-responsive" style="max-height:200px;overflow-y:auto">
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>Fase</th><th>Tipo</th><th class="text-end">#</th></tr></thead>
+                        <tbody>
+                            {% for e in errors %}
+                            <tr><td><small>{{ e.phase }}</small></td><td><small>{{ e.error_type }}</small></td><td class="text-end">{{ e.cnt }}</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{# Filters + Table #}
+<div class="card card-bg mb-4">
+    <div class="card-body">
+        <h5 class="card-title">Dettaglio PA ({{ total_count }} risultati)</h5>
+        <form method="get" action="/diagnostica" class="row g-2 mb-3">
+            <input type="hidden" name="run_id" value="{{ run_id }}">
+            <div class="col-md-4">
+                <input type="text" name="q" class="form-control" placeholder="Cerca denominazione o cod_amm..." value="{{ q }}">
+            </div>
+            <div class="col-md-2">
+                <select name="status" class="form-select">
+                    <option value="">Tutti gli stati</option>
+                    <option value="ok" {% if status == 'ok' %}selected{% endif %}>WB trovata</option>
+                    <option value="no_wb" {% if status == 'no_wb' %}selected{% endif %}>Sito OK, no WB</option>
+                    <option value="no_site" {% if status == 'no_site' %}selected{% endif %}>Sito irraggiungibile</option>
+                    <option value="no_channel" {% if status == 'no_channel' %}selected{% endif %}>WB senza canale</option>
+                    <option value="error" {% if status == 'error' %}selected{% endif %}>Con errore</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="method" class="form-select">
+                    <option value="">Tutti i metodi</option>
+                    <option value="guess_url" {% if method == 'guess_url' %}selected{% endif %}>guess_url</option>
+                    <option value="menu_crawl" {% if method == 'menu_crawl' %}selected{% endif %}>menu_crawl</option>
+                    <option value="sitemap" {% if method == 'sitemap' %}selected{% endif %}>sitemap</option>
+                    <option value="at_drilldown" {% if method == 'at_drilldown' %}selected{% endif %}>at_drilldown</option>
+                    <option value="deep_crawl" {% if method == 'deep_crawl' %}selected{% endif %}>deep_crawl</option>
+                    <option value="google" {% if method == 'google' %}selected{% endif %}>google_fallback</option>
+                    <option value="none" {% if method == 'none' %}selected{% endif %}>Non trovata</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Filtra</button>
+            </div>
+            <div class="col-md-2">
+                <a href="/diagnostica?run_id={{ run_id }}" class="btn btn-outline-secondary w-100">Reset</a>
+            </div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle" style="font-size:.85rem">
+                <thead class="table-light">
+                    <tr>
+                        <th>PA</th>
+                        <th>Regione</th>
+                        <th class="text-center">Sito</th>
+                        <th class="text-center">WB</th>
+                        <th>Discovery</th>
+                        <th class="text-center">Canale</th>
+                        <th>Software</th>
+                        <th class="text-center">Anon</th>
+                        <th class="text-center">RPCT</th>
+                        <th class="text-center">Policy</th>
+                        <th class="text-end">Dur.</th>
+                        <th>Errore</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr>
+                        <td>
+                            <a href="/pa/{{ r.cod_amm }}" title="{{ r.denominazione }}">
+                                {{ r.denominazione[:50] }}{% if r.denominazione|length > 50 %}...{% endif %}
+                            </a>
+                            <br><small class="text-muted">{{ r.cod_amm }}</small>
+                        </td>
+                        <td><small>{{ r.regione or '—' }}</small></td>
+                        <td class="text-center">
+                            {% if r.site_reachable == 1 %}<span class="badge bg-success">{{ r.site_http_status or 'OK' }}</span>
+                            {% elif r.site_reachable == 0 %}<span class="badge bg-danger">No</span>
+                            {% else %}<span class="badge bg-light text-dark">—</span>{% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if r.wb_section_found == 1 %}<span class="badge bg-success">Si</span>
+                            {% elif r.site_reachable == 1 %}<span class="badge bg-warning text-dark">No</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td><small><code>{{ r.discovery_method or '—' }}</code></small></td>
+                        <td class="text-center">
+                            {% if r.wb_digital_channel == 1 %}
+                                {% if r.wb_channel_reachable == 1 %}<span class="badge bg-success">OK</span>
+                                {% else %}<span class="badge bg-danger">Err</span>{% endif %}
+                            {% elif r.wb_section_found == 1 %}<span class="badge bg-warning text-dark">No</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td><small>{{ r.wb_software or '—' }}</small></td>
+                        <td class="text-center">
+                            {% if r.wb_anonymous_allowed == 1 %}<span class="badge bg-success">Si</span>
+                            {% elif r.wb_digital_channel == 1 %}<span class="badge bg-danger">No</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if r.rpct_name %}<span class="badge bg-success">Si</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if r.wb_policy_visible == 1 %}<span class="badge bg-success">Si</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="text-end"><small>{{ "%.1f"|format(r.scan_duration_s) if r.scan_duration_s else '—' }}s</small></td>
+                        <td>
+                            {% if r.site_error %}<small class="text-danger" title="{{ r.site_error }}">{{ r.site_error[:30] }}{% if r.site_error|length > 30 %}...{% endif %}</small>{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {# Pagination #}
+        {% if total_pages > 1 %}
+        <nav aria-label="Paginazione risultati">
+            <ul class="pagination justify-content-center mt-3">
+                <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                    <a class="page-link" href="/diagnostica?run_id={{ run_id }}&q={{ q }}&status={{ status }}&method={{ method }}&page={{ page - 1 }}">Prec</a>
+                </li>
+                {% for p in range(1, total_pages + 1) %}
+                    {% if p == page or (p <= 3) or (p >= total_pages - 2) or (p >= page - 1 and p <= page + 1) %}
+                <li class="page-item {% if p == page %}active{% endif %}">
+                    <a class="page-link" href="/diagnostica?run_id={{ run_id }}&q={{ q }}&status={{ status }}&method={{ method }}&page={{ p }}">{{ p }}</a>
+                </li>
+                    {% elif p == 4 or p == total_pages - 3 %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+                    <a class="page-link" href="/diagnostica?run_id={{ run_id }}&q={{ q }}&status={{ status }}&method={{ method }}&page={{ page + 1 }}">Succ</a>
+                </li>
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+const C = {{ completeness | tojson }};
+const M = {{ methods | tojson }};
+const tot = C.scansionate || 1;
+
+// Completeness horizontal bar
+new Chart(document.getElementById('chartCompleteness'), {
+    type: 'bar',
+    data: {
+        labels: [
+            'Sito raggiungibile', 'Sez. WB trovata', 'Canale digitale',
+            'Canale OK', 'Anonimato', 'Software ID',
+            'RPCT (web)', 'RPCT email', 'WB email', 'Policy visibile', 'PDF scaricato'
+        ],
+        datasets: [{
+            label: 'PA',
+            data: [
+                C.raggiungibili, C.wb_trovata, C.canale_digitale,
+                C.canale_ok, C.anonimato, C.software_id,
+                C.rpct_nome, C.rpct_email, C.wb_email_ok, C.policy_ok, C.pdf_scaricati
+            ],
+            backgroundColor: [
+                '#0066cc','#0066cc','#0066cc','#0066cc','#0066cc',
+                '#0066cc','#17a2b8','#17a2b8','#17a2b8','#6c757d','#6c757d'
+            ]
+        }]
+    },
+    options: {
+        indexAxis: 'y',
+        responsive: true,
+        plugins: {
+            legend: {display: false},
+            tooltip: {
+                callbacks: {
+                    label: function(ctx) {
+                        return ctx.raw + ' / ' + tot + ' (' + (ctx.raw/tot*100).toFixed(1) + '%)';
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {max: tot, ticks: {callback: v => v}}
+        }
+    }
+});
+
+// Discovery method doughnut
+const methodLabels = M.map(m => m.method_group);
+const methodData = M.map(m => m.cnt);
+const methodColors = ['#0066cc','#17a2b8','#28a745','#ffc107','#fd7e14','#dc3545','#6c757d','#adb5bd'];
+new Chart(document.getElementById('chartMethods'), {
+    type: 'doughnut',
+    data: {
+        labels: methodLabels,
+        datasets: [{data: methodData, backgroundColor: methodColors.slice(0, methodLabels.length)}]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {position: 'right'},
+            tooltip: {
+                callbacks: {
+                    label: function(ctx) {
+                        const t = ctx.dataset.data.reduce((a,b) => a+b, 0);
+                        return ctx.label + ': ' + ctx.raw + ' (' + (ctx.raw/t*100).toFixed(1) + '%)';
+                    }
+                }
+            }
+        }
+    }
+});
+
+// Funnel
+new Chart(document.getElementById('chartFunnel'), {
+    type: 'bar',
+    data: {
+        labels: ['Totale PA', 'Scansionate', 'Sito OK', 'Sez. WB', 'Canale digitale', 'Canale OK'],
+        datasets: [{
+            data: [C.totale, C.scansionate, C.raggiungibili, C.wb_trovata, C.canale_digitale, C.canale_ok],
+            backgroundColor: ['#adb5bd','#0066cc','#17a2b8','#28a745','#ffc107','#fd7e14']
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {display: false},
+            tooltip: {
+                callbacks: {
+                    label: function(ctx) {
+                        return ctx.raw + ' PA (' + (ctx.raw/C.totale*100).toFixed(1) + '%)';
+                    }
+                }
+            }
+        },
+        scales: {y: {beginAtZero: true}}
+    }
+});
+</script>
+{% endblock %}

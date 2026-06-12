@@ -24,6 +24,14 @@ CREATE TABLE IF NOT EXISTS pa (
     comune          TEXT,
     tipologia       TEXT,
     cf              TEXT,
+    indirizzo       TEXT,
+    cap             TEXT,
+    mail_pec        TEXT,
+    mail2           TEXT,
+    resp_nome       TEXT,
+    resp_cognome    TEXT,
+    resp_titolo     TEXT,
+    acronimo        TEXT,
     updated_at      TEXT
 );
 
