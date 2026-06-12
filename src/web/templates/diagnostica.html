@@ -173,12 +173,14 @@
                         </td>
                         <td><small>{{ r.regione or '—' }}</small></td>
                         <td class="text-center">
-                            {% if r.site_reachable == 1 %}<span class="badge bg-success">{{ r.site_http_status or 'OK' }}</span>
+                            {% if r.sito_web %}
+                            <a href="{{ r.sito_web }}" target="_blank" rel="noopener" title="{{ r.sito_web }}" class="badge text-decoration-none {% if r.site_reachable == 1 %}bg-success{% elif r.site_reachable == 0 %}bg-danger{% else %}bg-secondary{% endif %}">{{ r.site_http_status or ('No' if r.site_reachable == 0 else 'Vai') }} &#x2197;</a>
                             {% elif r.site_reachable == 0 %}<span class="badge bg-danger">No</span>
                             {% else %}<span class="badge bg-light text-dark">—</span>{% endif %}
                         </td>
                         <td class="text-center">
-                            {% if r.wb_section_found == 1 %}<span class="badge bg-success">Si</span>
+                            {% if r.wb_section_found == 1 and r.wb_section_url %}<a href="{{ r.wb_section_url }}" target="_blank" rel="noopener" class="badge bg-success text-decoration-none">Si &#x2197;</a>
+                            {% elif r.wb_section_found == 1 %}<span class="badge bg-success">Si</span>
                             {% elif r.site_reachable == 1 %}<span class="badge bg-warning text-dark">No</span>
                             {% else %}—{% endif %}
                         </td>
