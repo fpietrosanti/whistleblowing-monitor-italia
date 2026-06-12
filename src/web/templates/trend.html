@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% set active_page = "trend" %}
+{% block title %}Trend — Whistleblowing Monitor Italia{% endblock %}
+
+{% block content %}
+<h1 class="mb-2">Trend Mensili</h1>
+<p class="lead mb-4">Evoluzione degli indicatori nel tempo.</p>
+
+{% if kpi_by_run %}
+<div class="table-responsive mb-4">
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>Scansione</th>
+                <th class="text-end">PA analizzate</th>
+                <th class="text-end">Siti OK</th>
+                <th class="text-end">Sez. WB</th>
+                <th class="text-end">Canale digitale</th>
+                <th class="text-end">Canale access.</th>
+                <th class="text-end">Anonimato</th>
+                <th class="text-end">Policy</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in kpi_by_run %}
+            <tr>
+                <td><strong>{{ r.scan_date }}</strong></td>
+                <td class="text-end">{{ "{:,}".format(r.totale).replace(",", ".") }}</td>
+                <td class="text-end">{{ "{:,}".format(r.raggiungibili or 0).replace(",", ".") }} <small class="text-muted">({{ "%.1f"|format((r.raggiungibili or 0) / r.totale * 100 if r.totale else 0) }}%)</small></td>
+                <td class="text-end">{{ "{:,}".format(r.sezione_wb or 0).replace(",", ".") }} <small class="text-muted">({{ "%.1f"|format((r.sezione_wb or 0) / r.totale * 100 if r.totale else 0) }}%)</small></td>
+                <td class="text-end">{{ "{:,}".format(r.canale_digitale or 0).replace(",", ".") }} <small class="text-muted">({{ "%.1f"|format((r.canale_digitale or 0) / r.totale * 100 if r.totale else 0) }}%)</small></td>
+                <td class="text-end">{{ "{:,}".format(r.canale_accessibile or 0).replace(",", ".") }} <small class="text-muted">({{ "%.1f"|format((r.canale_accessibile or 0) / r.totale * 100 if r.totale else 0) }}%)</small></td>
+                <td class="text-end">{{ "{:,}".format(r.anonimato or 0).replace(",", ".") }} <small class="text-muted">({{ "%.1f"|format((r.anonimato or 0) / r.totale * 100 if r.totale else 0) }}%)</small></td>
+                <td class="text-end">{{ "{:,}".format(r.policy_visibile or 0).replace(",", ".") }} <small class="text-muted">({{ "%.1f"|format((r.policy_visibile or 0) / r.totale * 100 if r.totale else 0) }}%)</small></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if kpi_by_run|length > 1 %}
+<div class="row g-3">
+    {% set latest = kpi_by_run[0] %}
+    {% set prev = kpi_by_run[1] %}
+    {% for label, key in [
+        ("Canale digitale", "canale_digitale"),
+        ("Canale accessibile", "canale_accessibile"),
+        ("Anonimato", "anonimato"),
+        ("Policy visibile", "policy_visibile"),
+    ] %}
+    {% set diff = (latest[key] or 0) - (prev[key] or 0) %}
+    <div class="col-md-3">
+        <div class="card card-bg">
+            <div class="card-body text-center p-3">
+                <p class="text-muted mb-1">{{ label }}</p>
+                <span class="fw-bold" style="font-size: 1.5rem;">{{ latest[key] or 0 }}</span>
+                {% if diff > 0 %}
+                <span class="badge bg-success ms-2">+{{ diff }}</span>
+                {% elif diff < 0 %}
+                <span class="badge bg-danger ms-2">{{ diff }}</span>
+                {% else %}
+                <span class="badge bg-secondary ms-2">=</span>
+                {% endif %}
+                <p class="text-muted mt-1 mb-0" style="font-size: 0.8rem;">vs {{ prev.scan_date }}</p>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="alert alert-info">Almeno due scansioni sono necessarie per visualizzare i trend.</div>
+{% endif %}
+{% endblock %}

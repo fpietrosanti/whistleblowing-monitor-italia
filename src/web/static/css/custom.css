@@ -1,0 +1,23 @@
+.border-bottom-card {
+    border-bottom: 3px solid transparent;
+}
+.border-bottom-card.border-primary { border-bottom-color: #0066cc; }
+.border-bottom-card.border-success { border-bottom-color: #008758; }
+.border-bottom-card.border-warning { border-bottom-color: #a66300; }
+.border-bottom-card.border-danger { border-bottom-color: #d9364f; }
+.border-bottom-card.border-info { border-bottom-color: #4a90d9; }
+
+.card-bg {
+    background: #fff;
+    border: 1px solid #d9dadb;
+    border-radius: 4px;
+}
+
+.table th {
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+footer.it-footer {
+    margin-top: 3rem;
+}

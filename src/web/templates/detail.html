@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% set active_page = "search" %}
+{% block title %}{{ pa.denominazione }} — Whistleblowing Monitor Italia{% endblock %}
+
+{% block content %}
+<nav aria-label="Breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/ricerca">Ricerca</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ pa.denominazione }}</li>
+    </ol>
+</nav>
+
+<h1 class="mb-1">{{ pa.denominazione }}</h1>
+<p class="text-muted mb-4">
+    {{ pa.categoria or '' }}
+    {% if pa.regione %} &middot; {{ pa.regione }}{% endif %}
+    {% if pa.provincia %} ({{ pa.provincia }}){% endif %}
+    &middot; Cod. <code>{{ pa.cod_amm }}</code>
+    {% if pa.cf %} &middot; CF <code>{{ pa.cf }}</code>{% endif %}
+</p>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card card-bg">
+            <div class="card-body">
+                <h5 class="card-title">Informazioni PA</h5>
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Sito web</dt>
+                    <dd class="col-sm-7">
+                        {% if pa.sito_web %}<a href="{{ pa.sito_web }}" target="_blank" rel="noopener">{{ pa.sito_web }}</a>
+                        {% else %}Non disponibile{% endif %}
+                    </dd>
+                    <dt class="col-sm-5">Categoria</dt>
+                    <dd class="col-sm-7">{{ pa.categoria or '—' }}</dd>
+                    <dt class="col-sm-5">Regione</dt>
+                    <dd class="col-sm-7">{{ pa.regione or '—' }}</dd>
+                    <dt class="col-sm-5">Comune</dt>
+                    <dd class="col-sm-7">{{ pa.comune or '—' }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    {% if scans %}
+    {% set s = scans[0] %}
+    <div class="col-md-6">
+        <div class="card card-bg">
+            <div class="card-body">
+                <h5 class="card-title">Ultima Scansione <small class="text-muted">({{ s.scan_date[:10] }})</small></h5>
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Sito raggiungibile</dt>
+                    <dd class="col-sm-7">
+                        {% if s.site_reachable %}<span class="badge bg-success">Si</span> (HTTP {{ s.site_http_status }})
+                        {% else %}<span class="badge bg-danger">No</span> {{ s.site_error or '' }}{% endif %}
+                    </dd>
+                    <dt class="col-sm-5">Rendering</dt>
+                    <dd class="col-sm-7">{{ s.render_mode or '—' }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card card-bg">
+            <div class="card-body">
+                <h5 class="card-title">Canale Whistleblowing</h5>
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Sezione WB trovata</dt>
+                    <dd class="col-sm-7">
+                        {% if s.wb_section_found %}<span class="badge bg-success">Si</span>
+                        {% else %}<span class="badge bg-secondary">No</span>{% endif %}
+                    </dd>
+                    {% if s.wb_section_url %}
+                    <dt class="col-sm-5">URL sezione</dt>
+                    <dd class="col-sm-7"><a href="{{ s.wb_section_url }}" target="_blank" rel="noopener" class="text-truncate d-block" style="max-width: 100%;">{{ s.wb_section_url }}</a></dd>
+                    {% endif %}
+                    <dt class="col-sm-5">Canale digitale</dt>
+                    <dd class="col-sm-7">
+                        {% if s.wb_digital_channel %}<span class="badge bg-success">Si</span>
+                        {% else %}<span class="badge bg-warning">No</span>{% endif %}
+                    </dd>
+                    {% if s.wb_channel_url %}
+                    <dt class="col-sm-5">URL canale</dt>
+                    <dd class="col-sm-7"><a href="{{ s.wb_channel_url }}" target="_blank" rel="noopener" class="text-truncate d-block" style="max-width: 100%;">{{ s.wb_channel_url }}</a></dd>
+                    {% endif %}
+                    <dt class="col-sm-5">Raggiungibile</dt>
+                    <dd class="col-sm-7">
+                        {% if s.wb_channel_reachable %}<span class="badge bg-success">Si</span>
+                        {% elif s.wb_digital_channel %}<span class="badge bg-danger">No</span>
+                        {% else %}—{% endif %}
+                    </dd>
+                    <dt class="col-sm-5">Tipo</dt>
+                    <dd class="col-sm-7">{{ s.wb_channel_type or '—' }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card card-bg">
+            <div class="card-body">
+                <h5 class="card-title">Accesso e Anonimato</h5>
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Richiede autenticazione</dt>
+                    <dd class="col-sm-7">
+                        {% if s.wb_requires_auth %}<span class="badge bg-warning">Si</span>
+                        {% elif s.wb_digital_channel %}<span class="badge bg-success">No</span>
+                        {% else %}—{% endif %}
+                    </dd>
+                    <dt class="col-sm-5">Tipo autenticazione</dt>
+                    <dd class="col-sm-7">{{ s.wb_auth_type or '—' }}</dd>
+                    <dt class="col-sm-5">Segnalazione anonima</dt>
+                    <dd class="col-sm-7">
+                        {% if s.wb_anonymous_allowed %}<span class="badge bg-success">Si</span>
+                        {% elif s.wb_digital_channel %}<span class="badge bg-danger">No</span>
+                        {% else %}—{% endif %}
+                    </dd>
+                    <dt class="col-sm-5">Auth forte (SPID/CIE)</dt>
+                    <dd class="col-sm-7">
+                        {% if s.wb_strong_auth_required %}<span class="badge bg-danger">Si</span>
+                        {% elif s.wb_digital_channel %}<span class="badge bg-success">No</span>
+                        {% else %}—{% endif %}
+                    </dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card card-bg">
+            <div class="card-body">
+                <h5 class="card-title">Software</h5>
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Software</dt>
+                    <dd class="col-sm-7">{{ s.wb_software or '—' }}</dd>
+                    <dt class="col-sm-5">Versione</dt>
+                    <dd class="col-sm-7">{{ s.wb_software_version or '—' }}</dd>
+                    <dt class="col-sm-5">Confidenza</dt>
+                    <dd class="col-sm-7">
+                        {% if s.wb_software_confidence %}
+                        <div class="progress" style="height: 8px;">
+                            <div class="progress-bar" style="width: {{ (s.wb_software_confidence * 100)|int }}%"></div>
+                        </div>
+                        <small>{{ "%.0f"|format(s.wb_software_confidence * 100) }}%</small>
+                        {% else %}—{% endif %}
+                    </dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card card-bg">
+            <div class="card-body">
+                <h5 class="card-title">Contatti RPCT</h5>
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Nome</dt>
+                    <dd class="col-sm-8">{{ s.rpct_name or '—' }}</dd>
+                    <dt class="col-sm-4">Email</dt>
+                    <dd class="col-sm-8">{{ s.rpct_email or '—' }}</dd>
+                    <dt class="col-sm-4">Telefono</dt>
+                    <dd class="col-sm-8">{{ s.rpct_phone or '—' }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card card-bg">
+            <div class="card-body">
+                <h5 class="card-title">Policy e Canali Alt.</h5>
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Policy visibile</dt>
+                    <dd class="col-sm-7">
+                        {% if s.wb_policy_visible %}<span class="badge bg-success">Si</span>
+                        {% else %}<span class="badge bg-secondary">No</span>{% endif %}
+                    </dd>
+                    <dt class="col-sm-5">Email segnalaz.</dt>
+                    <dd class="col-sm-7">{{ s.wb_email or '—' }}</dd>
+                    <dt class="col-sm-5">Tel. segnalaz.</dt>
+                    <dd class="col-sm-7">{{ s.wb_phone or '—' }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if scans|length > 1 %}
+<h3 class="mt-4 mb-3">Storico Scansioni</h3>
+<div class="table-responsive">
+    <table class="table table-sm">
+        <thead>
+            <tr>
+                <th>Data</th>
+                <th class="text-center">Sito</th>
+                <th class="text-center">Sez. WB</th>
+                <th class="text-center">Canale</th>
+                <th class="text-center">Anon.</th>
+                <th>Software</th>
+                <th class="text-center">Policy</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sc in scans %}
+            <tr>
+                <td>{{ sc.scan_date[:10] }}</td>
+                <td class="text-center">{% if sc.site_reachable %}<span class="badge bg-success">OK</span>{% else %}<span class="badge bg-danger">No</span>{% endif %}</td>
+                <td class="text-center">{% if sc.wb_section_found %}<span class="badge bg-success">Si</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
+                <td class="text-center">{% if sc.wb_digital_channel %}<span class="badge bg-success">Si</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
+                <td class="text-center">{% if sc.wb_anonymous_allowed %}<span class="badge bg-success">Si</span>{% elif sc.wb_digital_channel %}<span class="badge bg-danger">No</span>{% else %}—{% endif %}</td>
+                <td>{{ sc.wb_software or '—' }}</td>
+                <td class="text-center">{% if sc.wb_policy_visible %}<span class="badge bg-success">Si</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}

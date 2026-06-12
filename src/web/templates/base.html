@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>{% block title %}Whistleblowing Monitor Italia{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.18.1/dist/css/bootstrap-italia.min.css">
+    <link rel="stylesheet" href="/static/css/custom.css">
+</head>
+<body>
+    <header class="it-header-wrapper">
+        <div class="it-header-slim-wrapper">
+            <div class="container">
+                <div class="row">
+                    <div class="col-12">
+                        <div class="it-header-slim-wrapper-content">
+                            <span class="d-none d-lg-block">Monitoraggio indipendente dei canali di whistleblowing</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="it-header-center-wrapper">
+            <div class="container">
+                <div class="row">
+                    <div class="col-12">
+                        <div class="it-header-center-content-wrapper">
+                            <div class="it-brand-wrapper">
+                                <a href="/">
+                                    <div class="it-brand-text">
+                                        <div class="it-brand-title">Whistleblowing Monitor Italia</div>
+                                        <div class="it-brand-tagline d-none d-md-block">Osservatorio canali di segnalazione anticorruzione nelle PA</div>
+                                    </div>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="it-header-navbar-wrapper">
+            <div class="container">
+                <div class="row">
+                    <div class="col-12">
+                        <nav class="navbar navbar-expand-lg has-megamenu" aria-label="Navigazione principale">
+                            <button class="custom-navbar-toggler" type="button" aria-controls="navMain" aria-expanded="false" aria-label="Mostra/Nascondi la navigazione" data-bs-toggle="navbarcollapsible" data-bs-target="#navMain">
+                                <svg class="icon"><use href="/static/bootstrap-italia/svg/sprites.svg#it-burger"></use></svg>
+                            </button>
+                            <div class="navbar-collapsable" id="navMain">
+                                <div class="close-div">
+                                    <button class="btn close-menu" type="button"><span class="visually-hidden">Nascondi la navigazione</span></button>
+                                </div>
+                                <div class="menu-wrapper">
+                                    <ul class="navbar-nav">
+                                        <li class="nav-item"><a class="nav-link{% if active_page == 'dashboard' %} active{% endif %}" href="/"><span>Dashboard</span></a></li>
+                                        <li class="nav-item"><a class="nav-link{% if active_page == 'search' %} active{% endif %}" href="/ricerca"><span>Ricerca PA</span></a></li>
+                                        <li class="nav-item"><a class="nav-link{% if active_page == 'opendata' %} active{% endif %}" href="/opendata"><span>Open Data</span></a></li>
+                                        <li class="nav-item"><a class="nav-link{% if active_page == 'trend' %} active{% endif %}" href="/trend"><span>Trend</span></a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container my-4">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="it-footer">
+        <div class="it-footer-main">
+            <div class="container">
+                <div class="row">
+                    <div class="col-sm-12">
+                        <div class="it-brand-wrapper">
+                            <div class="it-brand-text">
+                                <h2>Whistleblowing Monitor Italia</h2>
+                                <p class="mb-0">Monitoraggio indipendente dello stato di attuazione dei canali digitali di segnalazione anticorruzione presso le Pubbliche Amministrazioni italiane.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="it-footer-small-prints clearfix">
+            <div class="container">
+                <p class="mb-0">Dati da <a href="https://indicepa.gov.it" target="_blank" rel="noopener">IndicePA</a> &middot; Progetto open source &middot; Dati rilasciati come Open Data</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.18.1/dist/js/bootstrap-italia.bundle.min.js"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

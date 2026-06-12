@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% set active_page = "dashboard" %}
+{% block title %}Dashboard — Whistleblowing Monitor Italia{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="mb-1">Dashboard</h1>
+        {% if scan_info %}
+        <p class="text-muted">Ultima scansione: {{ scan_info.started_at[:10] }} &middot; {{ kpi.totale|default(0) }} enti analizzati</p>
+        {% endif %}
+    </div>
+</div>
+
+{% if kpi %}
+<div class="row g-3 mb-4">
+    {% for card in [
+        ("Siti raggiungibili", kpi.raggiungibili, kpi.pct_raggiungibili, "primary"),
+        ("Sezione WB trovata", kpi.sezione_wb, kpi.pct_sezione_wb, "info"),
+        ("Canale digitale", kpi.canale_digitale, kpi.pct_canale_digitale, "success"),
+        ("Canale accessibile", kpi.canale_accessibile, kpi.pct_canale_accessibile, "success"),
+        ("Anonimato supportato", kpi.anonimato, kpi.pct_anonimato, "warning"),
+        ("Auth forte richiesta", kpi.auth_forte, kpi.pct_auth_forte, "danger"),
+        ("Contatto RPCT", kpi.rpct_email, kpi.pct_rpct_email, "info"),
+        ("Canale email/tel", kpi.wb_email, kpi.pct_wb_email, "info"),
+        ("Policy visibile", kpi.policy_visibile, kpi.pct_policy_visibile, "primary"),
+    ] %}
+    <div class="col-md-4 col-lg-3">
+        <div class="card-wrapper">
+            <div class="card card-bg border-bottom-card border-{{ card[3] }}">
+                <div class="card-body p-3">
+                    <p class="card-title text-muted mb-1" style="font-size: 0.85rem;">{{ card[0] }}</p>
+                    <div class="d-flex align-items-baseline gap-2">
+                        <span class="fw-bold" style="font-size: 2rem;">{{ "{:,}".format(card[1]|default(0)).replace(",", ".") }}</span>
+                        <span class="badge bg-{{ card[3] }}">{{ card[2]|default(0) }}%</span>
+                    </div>
+                    <div class="progress mt-2" style="height: 6px;">
+                        <div class="progress-bar bg-{{ card[3] }}" role="progressbar" style="width: {{ card[2]|default(0) }}%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card card-bg">
+            <div class="card-body">
+                <h5 class="card-title mb-3">Software di Whistleblowing</h5>
+                <table class="table table-sm">
+                    <thead>
+                        <tr><th>Software</th><th class="text-end">PA</th><th class="text-end">%</th></tr>
+                    </thead>
+                    <tbody>
+                        {% set sw_total = software|sum(attribute='cnt') if software else 1 %}
+                        {% for s in software %}
+                        <tr>
+                            <td>{{ s.wb_software }}</td>
+                            <td class="text-end">{{ "{:,}".format(s.cnt).replace(",", ".") }}</td>
+                            <td class="text-end">{{ "%.1f"|format(s.cnt / sw_total * 100) }}%</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="fw-bold"><td>Totale</td><td class="text-end">{{ "{:,}".format(sw_total).replace(",", ".") }}</td><td class="text-end">100%</td></tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card card-bg">
+            <div class="card-body">
+                <h5 class="card-title mb-3">Breakdown per Regione</h5>
+                <div style="max-height: 450px; overflow-y: auto;">
+                <table class="table table-sm">
+                    <thead class="sticky-top bg-white">
+                        <tr><th>Regione</th><th class="text-end">PA</th><th class="text-end">Canale</th><th class="text-end">Anon.</th><th class="text-end">Policy</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for r in by_region %}
+                        <tr>
+                            <td>{{ r.regione }}</td>
+                            <td class="text-end">{{ r.totale }}</td>
+                            <td class="text-end">{{ r.canale_digitale }} <small class="text-muted">({{ "%.0f"|format(r.canale_digitale / r.totale * 100 if r.totale else 0) }}%)</small></td>
+                            <td class="text-end">{{ r.anonimato }}</td>
+                            <td class="text-end">{{ r.policy_visibile }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info">Nessun dato di scansione disponibile. Eseguire una scansione per popolare la dashboard.</div>
+{% endif %}
+{% endblock %}

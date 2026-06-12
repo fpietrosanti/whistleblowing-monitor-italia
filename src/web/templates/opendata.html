@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% set active_page = "opendata" %}
+{% block title %}Open Data — Whistleblowing Monitor Italia{% endblock %}
+
+{% block content %}
+<h1 class="mb-2">Open Data</h1>
+<p class="lead mb-4">Tutti i dati raccolti sono rilasciati come dati aperti, liberamente scaricabili e riutilizzabili.</p>
+
+<div class="callout note mb-4">
+    <div class="callout-title">Licenza</div>
+    <p>I dati sono rilasciati con licenza <strong>Creative Commons Attribution 4.0 (CC BY 4.0)</strong>. Puoi riutilizzarli liberamente citando la fonte.</p>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card card-bg">
+            <div class="card-body text-center p-4">
+                <h5>CSV</h5>
+                <p class="text-muted">Tabella piatta UTF-8, una riga per PA. Pronto per spreadsheet e analisi dati.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-bg">
+            <div class="card-body text-center p-4">
+                <h5>Excel (.xlsx)</h5>
+                <p class="text-muted">Workbook con fogli: Dati, KPI, Per Regione, Per Software.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-bg">
+            <div class="card-body text-center p-4">
+                <h5>JSON</h5>
+                <p class="text-muted">Formato strutturato con metadati e KPI. Per integrazione programmatica.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if files %}
+<h3 class="mb-3">File disponibili</h3>
+<div class="table-responsive">
+    <table class="table">
+        <thead>
+            <tr><th>File</th><th>Formato</th><th>Dimensione</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for f in files %}
+            <tr>
+                <td>{{ f.name }}</td>
+                <td><span class="badge bg-primary">{{ f.format }}</span></td>
+                <td>{{ f.size }}</td>
+                <td><a href="/opendata/download/{{ f.name }}" class="btn btn-sm btn-outline-primary">Scarica</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="alert alert-info">Nessun file di export disponibile. I file vengono generati automaticamente al termine di ogni scansione.</div>
+{% endif %}
+{% endblock %}

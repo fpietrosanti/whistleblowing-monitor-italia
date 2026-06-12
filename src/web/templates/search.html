@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% set active_page = "search" %}
+{% block title %}Ricerca PA — Whistleblowing Monitor Italia{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Ricerca Pubblica Amministrazione</h1>
+
+<form method="get" action="/ricerca" class="mb-4">
+    <div class="row g-3">
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="q" class="active">Denominazione o codice</label>
+                <input type="text" class="form-control" id="q" name="q" value="{{ q }}" placeholder="Es. Comune di Roma">
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="form-group">
+                <label for="regione" class="active">Regione</label>
+                <select class="form-control" id="regione" name="regione">
+                    <option value="">Tutte</option>
+                    {% for r in regioni %}
+                    <option value="{{ r }}" {% if r == regione %}selected{% endif %}>{{ r }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="form-group">
+                <label for="has_channel" class="active">Canale digitale</label>
+                <select class="form-control" id="has_channel" name="has_channel">
+                    <option value="">Tutti</option>
+                    <option value="yes" {% if has_channel == 'yes' %}selected{% endif %}>Con canale</option>
+                    <option value="no" {% if has_channel == 'no' %}selected{% endif %}>Senza canale</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="form-group">
+                <label for="software" class="active">Software</label>
+                <select class="form-control" id="software" name="software">
+                    <option value="">Tutti</option>
+                    {% for s in softwares %}
+                    <option value="{{ s }}" {% if s == software %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary w-100">Cerca</button>
+        </div>
+    </div>
+</form>
+
+<p class="text-muted mb-3">{{ "{:,}".format(total_count).replace(",", ".") }} risultati trovati — pagina {{ page }} di {{ total_pages }}</p>
+
+<div class="table-responsive">
+    <table class="table table-hover table-sm">
+        <thead>
+            <tr>
+                <th>Denominazione</th>
+                <th>Regione</th>
+                <th class="text-center">Sito</th>
+                <th class="text-center">Sez. WB</th>
+                <th class="text-center">Canale</th>
+                <th class="text-center">Anon.</th>
+                <th>Software</th>
+                <th class="text-center">RPCT</th>
+                <th class="text-center">Policy</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in results %}
+            <tr>
+                <td><a href="/dettaglio/{{ r.cod_amm }}">{{ r.denominazione }}</a></td>
+                <td>{{ r.regione or '—' }}</td>
+                <td class="text-center">
+                    {% if r.site_reachable %}<span class="badge bg-success rounded-pill">OK</span>
+                    {% else %}<span class="badge bg-secondary rounded-pill">No</span>{% endif %}
+                </td>
+                <td class="text-center">
+                    {% if r.wb_section_found %}<span class="badge bg-success rounded-pill">Si</span>
+                    {% else %}<span class="badge bg-light text-dark rounded-pill">No</span>{% endif %}
+                </td>
+                <td class="text-center">
+                    {% if r.wb_digital_channel %}<span class="badge bg-success rounded-pill">Si</span>
+                    {% elif r.wb_section_found %}<span class="badge bg-warning rounded-pill">No</span>
+                    {% else %}<span class="badge bg-light text-dark rounded-pill">—</span>{% endif %}
+                </td>
+                <td class="text-center">
+                    {% if r.wb_anonymous_allowed %}<span class="badge bg-success rounded-pill">Si</span>
+                    {% elif r.wb_digital_channel %}<span class="badge bg-danger rounded-pill">No</span>
+                    {% else %}<span class="badge bg-light text-dark rounded-pill">—</span>{% endif %}
+                </td>
+                <td>{{ r.wb_software or '—' }}</td>
+                <td class="text-center">
+                    {% if r.rpct_email %}<span class="badge bg-success rounded-pill">Si</span>
+                    {% else %}<span class="badge bg-light text-dark rounded-pill">No</span>{% endif %}
+                </td>
+                <td class="text-center">
+                    {% if r.wb_policy_visible %}<span class="badge bg-success rounded-pill">Si</span>
+                    {% else %}<span class="badge bg-light text-dark rounded-pill">No</span>{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if total_pages > 1 %}
+<nav aria-label="Paginazione risultati">
+    <ul class="pagination justify-content-center">
+        {% if page > 1 %}
+        <li class="page-item"><a class="page-link" href="?q={{ q }}&regione={{ regione }}&categoria={{ categoria }}&has_channel={{ has_channel }}&software={{ software }}&page={{ page - 1 }}">Precedente</a></li>
+        {% endif %}
+        {% for p in range(1, total_pages + 1) %}
+            {% if p == page %}
+            <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+            {% elif p <= 3 or p > total_pages - 3 or (p >= page - 2 and p <= page + 2) %}
+            <li class="page-item"><a class="page-link" href="?q={{ q }}&regione={{ regione }}&categoria={{ categoria }}&has_channel={{ has_channel }}&software={{ software }}&page={{ p }}">{{ p }}</a></li>
+            {% elif p == 4 or p == total_pages - 3 %}
+            <li class="page-item disabled"><span class="page-link">…</span></li>
+            {% endif %}
+        {% endfor %}
+        {% if page < total_pages %}
+        <li class="page-item"><a class="page-link" href="?q={{ q }}&regione={{ regione }}&categoria={{ categoria }}&has_channel={{ has_channel }}&software={{ software }}&page={{ page + 1 }}">Successiva</a></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}
