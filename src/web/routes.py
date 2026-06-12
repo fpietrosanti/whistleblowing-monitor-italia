@@ -94,9 +94,15 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
             ORDER BY sr.started_at DESC
         """, (cod_amm,))
 
+        rpct_anac = query_db(
+            "SELECT * FROM rpct_anac WHERE cod_amm = ? ORDER BY data_nomina DESC LIMIT 1",
+            (cod_amm,), one=True,
+        )
+
         return templates.TemplateResponse(request, "detail.html", {
             "pa": pa,
             "scans": scans,
+            "rpct_anac": rpct_anac,
         })
 
     @app.get("/opendata")

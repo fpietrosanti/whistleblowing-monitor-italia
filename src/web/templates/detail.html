@@ -55,6 +55,10 @@
                     </dd>
                     <dt class="col-sm-5">Rendering</dt>
                     <dd class="col-sm-7">{{ s.render_mode or '—' }}</dd>
+                    {% if s.discovery_method and s.discovery_method != 'none' %}
+                    <dt class="col-sm-5">Metodo discovery</dt>
+                    <dd class="col-sm-7"><code>{{ s.discovery_method }}</code></dd>
+                    {% endif %}
                 </dl>
             </div>
         </div>
@@ -157,8 +161,22 @@
         <div class="card card-bg">
             <div class="card-body">
                 <h5 class="card-title">Contatti RPCT</h5>
+                {% if rpct_anac %}
                 <dl class="row mb-0">
-                    <dt class="col-sm-4">Nome</dt>
+                    <dt class="col-sm-4">RPCT (ANAC)</dt>
+                    <dd class="col-sm-8"><strong>{{ rpct_anac.rpct_nome_completo }}</strong></dd>
+                    <dt class="col-sm-4">Data nomina</dt>
+                    <dd class="col-sm-8">{{ rpct_anac.data_nomina or '—' }}</dd>
+                    {% if rpct_anac.link_atto_nomina %}
+                    <dt class="col-sm-4">Atto nomina</dt>
+                    <dd class="col-sm-8"><a href="{{ rpct_anac.link_atto_nomina }}" target="_blank" rel="noopener">Visualizza</a></dd>
+                    {% endif %}
+                </dl>
+                <hr class="my-2">
+                <small class="text-muted">Dati da ANAC - dati.anticorruzione.it</small>
+                {% endif %}
+                <dl class="row mb-0 {% if rpct_anac %}mt-2{% endif %}">
+                    <dt class="col-sm-4">Nome (web)</dt>
                     <dd class="col-sm-8">{{ s.rpct_name or '—' }}</dd>
                     <dt class="col-sm-4">Email</dt>
                     <dd class="col-sm-8">{{ s.rpct_email or '—' }}</dd>
