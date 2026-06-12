@@ -408,10 +408,10 @@ async def _try_keyword_search(
 
 async def discover_wb_section(
     cod_amm: str,
+    scan_run_id: str,
     site_url: str,
     http_client: httpx.AsyncClient,
     logger: logging.Logger,
-    scan_run_id: int,
 ) -> dict:
     """
     Discover the whistleblowing section on a PA website.
@@ -422,14 +422,14 @@ async def discover_wb_section(
     ----------
     cod_amm : str
         PA code from IndicePA.
+    scan_run_id : str
+        Current scan run ID, used for saving raw artefacts.
     site_url : str
         Base URL of the PA website.
     http_client : httpx.AsyncClient
         Shared async HTTP client (caller manages its lifecycle).
     logger : logging.Logger
         Logger instance for debug/info/warning output.
-    scan_run_id : int
-        Current scan run ID, used for saving raw artefacts.
 
     Returns
     -------
