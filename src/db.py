@@ -64,6 +64,10 @@ CREATE TABLE IF NOT EXISTS pa_scan (
 
 CREATE INDEX IF NOT EXISTS idx_pa_scan_run ON pa_scan(scan_run_id);
 CREATE INDEX IF NOT EXISTS idx_pa_scan_cod ON pa_scan(cod_amm);
+CREATE INDEX IF NOT EXISTS idx_pa_scan_run_cod ON pa_scan(scan_run_id, cod_amm);
+CREATE INDEX IF NOT EXISTS idx_pa_regione ON pa(regione);
+CREATE INDEX IF NOT EXISTS idx_pa_categoria ON pa(categoria);
+CREATE INDEX IF NOT EXISTS idx_pa_denominazione ON pa(denominazione);
 
 CREATE TABLE IF NOT EXISTS pa_scan_diff (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,

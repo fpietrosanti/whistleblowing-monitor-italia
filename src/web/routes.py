@@ -36,12 +36,16 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
         page: int = Query(1, ge=1),
     ):
         per_page = 50
+        max_run = query_db("SELECT MAX(id) as id FROM scan_run", one=True)
+        max_run_id = max_run["id"] if max_run else 0
+
         filters, params = build_search_filters(q, regione, categoria, has_channel, software)
         where = f"WHERE {' AND '.join(filters)}" if filters else ""
 
+        count_params = [max_run_id] + params
         total = query_db(
-            f"SELECT COUNT(*) as c FROM pa p LEFT JOIN pa_scan s ON s.cod_amm = p.cod_amm AND s.scan_run_id = (SELECT MAX(id) FROM scan_run) {where}",
-            params, one=True
+            f"SELECT COUNT(*) as c FROM pa p LEFT JOIN pa_scan s ON s.cod_amm = p.cod_amm AND s.scan_run_id = ? {where}",
+            count_params, one=True
         )
         total_count = total["c"] if total else 0
         total_pages = max(1, (total_count + per_page - 1) // per_page)
@@ -53,11 +57,11 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
                    s.rpct_email, s.site_reachable
             FROM pa p
             LEFT JOIN pa_scan s ON s.cod_amm = p.cod_amm
-                AND s.scan_run_id = (SELECT MAX(id) FROM scan_run)
+                AND s.scan_run_id = ?
             {where}
             ORDER BY p.regione, p.denominazione
             LIMIT ? OFFSET ?
-        """, params + [per_page, (page - 1) * per_page])
+        """, [max_run_id] + params + [per_page, (page - 1) * per_page])
 
         regioni = query_db("SELECT DISTINCT regione FROM pa WHERE regione != '' ORDER BY regione")
         categorie = query_db("SELECT DISTINCT categoria FROM pa WHERE categoria != '' ORDER BY categoria")
