@@ -211,6 +211,11 @@ def _link_matches_wb(href: str, text: str) -> bool:
     return any(kw in combined for kw in WB_KEYWORDS_ALL)
 
 
+def _link_has_high_keyword(href: str, text: str) -> bool:
+    combined = (href + " " + text).lower()
+    return any(kw in combined for kw in WB_KEYWORDS_HIGH)
+
+
 async def _fetch(
     client: httpx.AsyncClient,
     url: str,
@@ -320,31 +325,55 @@ async def _try_menu_crawl(
     except Exception:
         return None
 
-    candidates: list[tuple[str, str]] = []
+    internal: list[tuple[str, str]] = []
+    external_high: list[tuple[str, str]] = []
     for tag in soup.find_all("a", href=True):
         href = tag["href"].strip()
+        if not href or href.startswith(("#", "javascript:", "mailto:", "tel:")):
+            continue
         text = tag.get_text(separator=" ", strip=True)
-        if _link_matches_wb(href, text):
-            absolute = urljoin(effective_url, href)
-            if _is_same_domain(absolute, base_url):
-                candidates.append((absolute, text))
+        if not _link_matches_wb(href, text):
+            continue
+        absolute = urljoin(effective_url, href)
+        if _is_same_domain(absolute, base_url):
+            internal.append((absolute, text))
+        elif _link_has_high_keyword(href, text):
+            external_high.append((absolute, text))
 
     seen: set[str] = set()
     unique: list[tuple[str, str]] = []
-    for url, text in candidates:
+    for url, text in internal + external_high:
         if url not in seen:
             seen.add(url)
             unique.append((url, text))
 
-    logger.debug("[%s] menu_crawl: %d candidate links", cod_amm, len(unique))
+    logger.debug(
+        "[%s] menu_crawl: %d candidates (%d internal, %d external-high)",
+        cod_amm,
+        len(unique),
+        len(internal),
+        len(external_high),
+    )
 
     for url, link_text in unique[:15]:
         resp2 = await _fetch(client, url, logger)
         if resp2 is None or resp2.status_code != 200:
             continue
         page_html = resp2.text
+        is_external = not _is_same_domain(url, base_url)
+        if is_external and _link_has_high_keyword(url, link_text):
+            logger.info(
+                "[%s] WB found via menu_crawl (external): %s ('%s')",
+                cod_amm,
+                url,
+                link_text[:50],
+            )
+            save_raw_html(scan_run_id, cod_amm, "wb_page_menu.html", page_html)
+            return _success_result(str(resp2.url), page_html, "menu_crawl:ext")
         if _page_is_wb_relevant(page_html):
-            logger.info("[%s] WB found via menu_crawl: %s ('%s')", cod_amm, url, link_text[:50])
+            logger.info(
+                "[%s] WB found via menu_crawl: %s ('%s')", cod_amm, url, link_text[:50]
+            )
             save_raw_html(scan_run_id, cod_amm, "wb_page_menu.html", page_html)
             return _success_result(str(resp2.url), page_html, "menu_crawl")
 
@@ -372,9 +401,15 @@ async def _try_sitemap(
             continue
 
         save_http_debug(
-            scan_run_id, cod_amm, "sitemap.xml",
-            sitemap_url, "GET", resp.status_code,
-            dict(resp.headers), 0, resp.text[:2000],
+            scan_run_id,
+            cod_amm,
+            "sitemap.xml",
+            sitemap_url,
+            "GET",
+            resp.status_code,
+            dict(resp.headers),
+            0,
+            resp.text[:2000],
         )
 
         locs = loc_pattern.findall(resp.text)
@@ -383,12 +418,22 @@ async def _try_sitemap(
         candidates = []
         for loc in locs:
             lower = loc.lower()
-            if any(kw in lower for kw in [
-                "whistleblowing", "anticorruzione", "corruzione",
-                "segnalazione", "segnalazioni", "segnala",
-                "illeciti", "rpct", "prevenzione",
-                "altri-contenuti", "altri_contenuti",
-            ]):
+            if any(
+                kw in lower
+                for kw in [
+                    "whistleblowing",
+                    "anticorruzione",
+                    "corruzione",
+                    "segnalazione",
+                    "segnalazioni",
+                    "segnala",
+                    "illeciti",
+                    "rpct",
+                    "prevenzione",
+                    "altri-contenuti",
+                    "altri_contenuti",
+                ]
+            ):
                 candidates.append(loc)
 
         logger.debug("[%s] sitemap: %d WB candidates", cod_amm, len(candidates))
@@ -570,11 +615,22 @@ async def _try_deep_crawl(
         text = tag.get_text(separator=" ", strip=True)
         absolute = urljoin(base_url, href)
         combined = (href + " " + text).lower()
-        if any(kw in combined for kw in [
-            "trasparente", "trasparenza", "anticorruzione", "corruzione",
-            "segnala", "whistleblowing", "illecit", "rpct", "integrità",
-            "altri contenuti", "altri-contenuti",
-        ]):
+        if any(
+            kw in combined
+            for kw in [
+                "trasparente",
+                "trasparenza",
+                "anticorruzione",
+                "corruzione",
+                "segnala",
+                "whistleblowing",
+                "illecit",
+                "rpct",
+                "integrità",
+                "altri contenuti",
+                "altri-contenuti",
+            ]
+        ):
             if _is_same_domain(absolute, base_url):
                 relevant_urls.append(absolute)
 
@@ -586,7 +642,11 @@ async def _try_deep_crawl(
             seen.add(u)
             unique_relevant.append(u)
 
-    logger.debug("[%s] deep_crawl: %d relevant links from homepage", cod_amm, len(unique_relevant))
+    logger.debug(
+        "[%s] deep_crawl: %d relevant links from homepage",
+        cod_amm,
+        len(unique_relevant),
+    )
 
     for url in unique_relevant[:20]:
         resp2 = await _fetch(client, url, logger)
@@ -636,7 +696,9 @@ async def _try_google_fallback(
         # Extract result URLs
         urls = re.findall(r'href="/url\?q=(https?://[^&"]+)', resp.text)
         if not urls:
-            urls = re.findall(r'<a href="(https?://' + re.escape(domain) + r'[^"]*)"', resp.text)
+            urls = re.findall(
+                r'<a href="(https?://' + re.escape(domain) + r'[^"]*)"', resp.text
+            )
 
         for result_url in urls[:5]:
             if domain not in result_url:
@@ -646,7 +708,9 @@ async def _try_google_fallback(
                 continue
             html = resp2.text
             if _page_is_wb_relevant(html):
-                logger.info("[%s] WB found via google_fallback: %s", cod_amm, result_url)
+                logger.info(
+                    "[%s] WB found via google_fallback: %s", cod_amm, result_url
+                )
                 save_raw_html(scan_run_id, cod_amm, "wb_page_google.html", html)
                 return _success_result(str(resp2.url), html, "google_fallback")
 
@@ -677,12 +741,38 @@ async def discover_wb_section(
     logger.info("[%s] Starting WB discovery on %s", cod_amm, base_url)
 
     strategies = [
-        ("guess_url", lambda: _try_guess_url(base_url, http_client, logger, scan_run_id, cod_amm)),
-        ("menu_crawl", lambda: _try_menu_crawl(base_url, http_client, logger, scan_run_id, cod_amm, homepage_html)),
-        ("sitemap", lambda: _try_sitemap(base_url, http_client, logger, scan_run_id, cod_amm)),
-        ("at_drilldown", lambda: _try_at_drilldown(base_url, http_client, logger, scan_run_id, cod_amm, homepage_html)),
-        ("deep_crawl", lambda: _try_deep_crawl(base_url, http_client, logger, scan_run_id, cod_amm, homepage_html)),
-        ("google_fallback", lambda: _try_google_fallback(base_url, http_client, logger, scan_run_id, cod_amm)),
+        (
+            "guess_url",
+            lambda: _try_guess_url(base_url, http_client, logger, scan_run_id, cod_amm),
+        ),
+        (
+            "menu_crawl",
+            lambda: _try_menu_crawl(
+                base_url, http_client, logger, scan_run_id, cod_amm, homepage_html
+            ),
+        ),
+        (
+            "sitemap",
+            lambda: _try_sitemap(base_url, http_client, logger, scan_run_id, cod_amm),
+        ),
+        (
+            "at_drilldown",
+            lambda: _try_at_drilldown(
+                base_url, http_client, logger, scan_run_id, cod_amm, homepage_html
+            ),
+        ),
+        (
+            "deep_crawl",
+            lambda: _try_deep_crawl(
+                base_url, http_client, logger, scan_run_id, cod_amm, homepage_html
+            ),
+        ),
+        (
+            "google_fallback",
+            lambda: _try_google_fallback(
+                base_url, http_client, logger, scan_run_id, cod_amm
+            ),
+        ),
     ]
 
     for name, strategy_fn in strategies:
