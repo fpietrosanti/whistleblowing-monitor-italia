@@ -168,6 +168,14 @@ Un'interfaccia web accessibile pubblicamente senza autenticazione che presenta:
 - Visualizzazioni geografiche e categoriali
 - Trend temporali
 
+**Design system**: l'interfaccia adotta **Bootstrap Italia v2.x**
+(https://italia.github.io/bootstrap-italia/), il tema Bootstrap 5 conforme alle
+Linee Guida di Design per i siti internet e i servizi digitali della PA italiana.
+Pur non essendo il progetto un sito istituzionale, l'adozione di Bootstrap Italia
+garantisce coerenza visiva con l'ecosistema PA, familiarità per gli utenti del
+settore pubblico, accessibilità WCAG 2.1 AA nativa e rispetto delle indicazioni
+AgID su tipografia, colori e componenti UI.
+
 ### 5.2 Open Data
 
 Export automatici aggiornati ad ogni scansione:
@@ -243,6 +251,7 @@ organizzati per PA e data di raccolta. Disponibili per download dalla dashboard.
 | Browser headless | `playwright` (Chromium) | Fallback per siti con rendering JS |
 | Database | SQLite 3 | Zero-config, portabile, adeguato al volume dati |
 | Web framework | `FastAPI` + `Jinja2` | Async, veloce, template HTML server-side |
+| UI framework | `Bootstrap Italia` v2.x | Design system PA italiana, Bootstrap 5, WCAG 2.1 AA |
 | Web server | `uvicorn` con TLS nativo | No reverse proxy, certificati Let's Encrypt diretti |
 | TLS/ACME | `certbot` (standalone) o libreria ACME Python | Rinnovo automatico certificati |
 | Export dati | `pandas` + `openpyxl` | Generazione CSV, XLSX, JSON |
@@ -415,13 +424,17 @@ whistleblowing-monitor-italia/
 │   └── web/
 │       ├── app.py              # FastAPI application
 │       ├── routes.py           # Endpoint API e pagine
+│       ├── static/
+│       │   ├── bootstrap-italia/   # CSS, JS, fonts da release GitHub
+│       │   └── css/
+│       │       └── custom.css      # Personalizzazioni minime
 │       └── templates/
-│           ├── base.html
-│           ├── index.html      # Dashboard KPI
-│           ├── search.html     # Ricerca PA
-│           ├── detail.html     # Dettaglio singola PA
-│           ├── opendata.html   # Pagina download open data
-│           └── trend.html      # Trend temporali
+│           ├── base.html           # Layout Bootstrap Italia
+│           ├── index.html          # Dashboard KPI
+│           ├── search.html         # Ricerca PA
+│           ├── detail.html         # Dettaglio singola PA
+│           ├── opendata.html       # Pagina download open data
+│           └── trend.html          # Trend temporali
 ├── data/
 │   ├── db/                     # Database SQLite
 │   ├── exports/                # File CSV, XLSX, JSON generati
@@ -443,7 +456,56 @@ whistleblowing-monitor-italia/
 └── PROJECT_DOCUMENT.md         # Questo documento
 ```
 
-## 11. Fingerprinting Software Whistleblowing
+## 11. Frontend — Bootstrap Italia
+
+### 11.1 Integrazione
+
+Bootstrap Italia viene servito come asset statico dall'applicazione FastAPI.
+I file CSS e JS vengono scaricati dalla release GitHub ufficiale
+(https://github.com/italia/bootstrap-italia/releases) e inclusi nella
+directory `src/web/static/`. Non si utilizza CDN in produzione.
+
+Struttura asset statici:
+```
+src/web/static/
+├── bootstrap-italia/
+│   ├── css/
+│   │   └── bootstrap-italia.min.css
+│   ├── js/
+│   │   └── bootstrap-italia.bundle.min.js
+│   └── fonts/
+│       └── ...
+└── css/
+    └── custom.css          # Personalizzazioni minime
+```
+
+### 11.2 Template HTML base
+
+I template Jinja2 ereditano da un layout base che include:
+- Header istituzionale (componente `it-header`) con titolo progetto
+- Navigazione principale con link a Dashboard, Ricerca, Open Data, Trend
+- Footer istituzionale (componente `it-footer`) con crediti e link
+- Meta viewport e lang="it" per accessibilità
+
+### 11.3 Componenti utilizzati
+
+| Pagina | Componenti Bootstrap Italia |
+|---|---|
+| **Dashboard KPI** | Card (`it-card`), Badge, Progress bar, Tabelle responsive |
+| **Ricerca PA** | Input con autocomplete (`it-input`), Filtri con Select, Chip |
+| **Dettaglio PA** | Card espandibili, Timeline (storico scansioni), Badge stato |
+| **Open Data** | Card download, Tabelle con ordinamento |
+| **Trend** | Card KPI con frecce trend, Tabelle comparative |
+
+### 11.4 Accessibilità
+
+Bootstrap Italia include nativamente il supporto WCAG 2.1 livello AA:
+- Contrasto colori conforme
+- Navigazione da tastiera
+- Attributi ARIA su tutti i componenti interattivi
+- Skip link e landmark regions
+
+## 12. Fingerprinting Software Whistleblowing
 
 ### 11.1 Software noti e pattern di riconoscimento
 
@@ -459,7 +521,7 @@ whistleblowing-monitor-italia/
 
 La lista verrà aggiornata e arricchita durante lo sviluppo e le prime scansioni.
 
-## 12. Export Open Data
+## 13. Export Open Data
 
 Ad ogni scansione completata, vengono generati automaticamente:
 
@@ -490,7 +552,7 @@ Struttura:
 }
 ```
 
-## 13. Infrastruttura di Deployment
+## 14. Infrastruttura di Deployment
 
 ### 13.1 Server
 - **Host**: `51.158.36.151` (stesso server del selective-copy-trader)
@@ -520,7 +582,7 @@ Struttura:
 - Chromium headless (installato via Playwright)
 - Porta 80 e 443 aperte
 
-## 14. Sicurezza e Limiti Etici
+## 15. Sicurezza e Limiti Etici
 
 - Il sistema effettua **solo lettura** dei siti web pubblici — nessuna modifica,
   nessun invio di dati, nessuna creazione di account.
@@ -531,7 +593,7 @@ Struttura:
 - Nessun dato personale viene raccolto oltre ai contatti RPCT pubblicati sul sito
   della PA (dati già pubblici per obbligo di legge).
 
-## 15. Evoluzioni Future (fuori scope Fase 1)
+## 16. Evoluzioni Future (fuori scope Fase 1)
 
 - Analisi contenutistica delle policy di whistleblowing (completezza, conformità
   alle linee guida ANAC)
@@ -545,7 +607,7 @@ Struttura:
 
 # PARTE III — Fase 2: Società Quotate sulla Borsa Italiana
 
-## 16. Contesto Normativo Settore Privato
+## 17. Contesto Normativo Settore Privato
 
 ### 16.1 Quadro legislativo applicabile
 
@@ -621,7 +683,7 @@ Questo perimetro è più ampio rispetto al settore pubblico e implica che il can
 di segnalazione debba essere accessibile a una platea variegata di soggetti, non
 solo ai dipendenti interni.
 
-## 17. Obiettivi Fase 2
+## 18. Obiettivi Fase 2
 
 ### 17.1 Obiettivo Generale
 
@@ -681,7 +743,7 @@ Breakdown per:
 - **Capitalizzazione**: large cap, mid cap, small cap
 - **Indice di appartenenza**: FTSE MIB, FTSE Italia Mid Cap, ecc.
 
-## 18. Fonte Dati — Registro Società Quotate
+## 19. Fonte Dati — Registro Società Quotate
 
 ### 18.1 CONSOB — Export Quotate
 
@@ -705,7 +767,7 @@ I dati CONSOB e Borsa Italiana vengono integrati per ottenere un record completo
 per ogni società: denominazione, sito web, mercato, settore, capitalizzazione,
 indici di appartenenza.
 
-## 19. Implementazione Tecnica Fase 2
+## 20. Implementazione Tecnica Fase 2
 
 ### 19.1 Estensioni al database
 
@@ -832,7 +894,7 @@ La dashboard web viene estesa con:
 - Confronto PA vs Quotate sugli indicatori comuni
 - Download open data separati per PA e quotate
 
-## 20. Pianificazione Fasi
+## 21. Pianificazione Fasi
 
 | Fase | Scope | Prerequisito |
 |---|---|---|
@@ -843,7 +905,7 @@ La Fase 2 riutilizza l'intera infrastruttura della Fase 1 (scanner, fingerprinti
 dashboard, export) estendendola con i moduli specifici per le società quotate
 (ingest CONSOB, discovery corporate, contatti OdV, documenti MOG/Codice Etico).
 
-## 21. Quadro Normativo di Riferimento (integrato Fase 2)
+## 22. Quadro Normativo di Riferimento (integrato Fase 2)
 
 - **Direttiva (UE) 2019/1937** — Protezione delle persone che segnalano violazioni
   del diritto dell'Unione
