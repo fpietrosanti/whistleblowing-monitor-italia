@@ -36,8 +36,7 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
         page: int = Query(1, ge=1),
     ):
         per_page = 50
-        max_run = query_db("SELECT MAX(id) as id FROM scan_run", one=True)
-        max_run_id = max_run["id"] if max_run else 0
+        max_run_id = _best_run_id()
 
         filters, params = build_search_filters(q, regione, categoria, has_channel, software)
         where = f"WHERE {' AND '.join(filters)}" if filters else ""
@@ -187,6 +186,7 @@ def build_search_filters(q, regione, categoria, has_channel, software):
 
 
 def compute_dashboard_kpi():
+    run_id = _best_run_id()
     row = query_db("""
         SELECT
             COUNT(*) as totale,
@@ -200,8 +200,8 @@ def compute_dashboard_kpi():
             SUM(CASE WHEN s.wb_email IS NOT NULL THEN 1 ELSE 0 END) as wb_email,
             SUM(CASE WHEN s.wb_policy_visible = 1 THEN 1 ELSE 0 END) as policy_visibile
         FROM pa_scan s
-        WHERE s.scan_run_id = (SELECT MAX(id) FROM scan_run)
-    """, one=True)
+        WHERE s.scan_run_id = ?
+    """, (run_id,), one=True)
     if not row or not row["totale"]:
         return {}
     t = row["totale"]
@@ -229,18 +229,20 @@ def compute_dashboard_kpi():
 
 
 def get_software_distribution():
+    run_id = _best_run_id()
     rows = query_db("""
         SELECT wb_software, COUNT(*) as cnt
         FROM pa_scan
-        WHERE scan_run_id = (SELECT MAX(id) FROM scan_run)
+        WHERE scan_run_id = ?
           AND wb_software IS NOT NULL AND wb_software != ''
         GROUP BY wb_software
         ORDER BY cnt DESC
-    """)
+    """, (run_id,))
     return [dict(r) for r in rows]
 
 
 def get_region_breakdown():
+    run_id = _best_run_id()
     rows = query_db("""
         SELECT p.regione,
                COUNT(*) as totale,
@@ -249,15 +251,23 @@ def get_region_breakdown():
                SUM(CASE WHEN s.wb_policy_visible = 1 THEN 1 ELSE 0 END) as policy_visibile
         FROM pa p
         JOIN pa_scan s ON s.cod_amm = p.cod_amm
-        WHERE s.scan_run_id = (SELECT MAX(id) FROM scan_run)
+        WHERE s.scan_run_id = ?
           AND p.regione != ''
         GROUP BY p.regione
         ORDER BY p.regione
-    """)
+    """, (run_id,))
     return [dict(r) for r in rows]
 
 
-def get_latest_scan_info():
-    return query_db(
-        "SELECT * FROM scan_run ORDER BY started_at DESC LIMIT 1", one=True
+def _best_run_id():
+    """Return the scan_run_id with the most scanned PAs (prefer real coverage)."""
+    row = query_db(
+        "SELECT id FROM scan_run ORDER BY scanned_pa DESC, id DESC LIMIT 1",
+        one=True,
     )
+    return row["id"] if row else 0
+
+
+def get_latest_scan_info():
+    run_id = _best_run_id()
+    return query_db("SELECT * FROM scan_run WHERE id = ?", (run_id,), one=True)
