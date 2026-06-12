@@ -13,5 +13,7 @@ INDICEPA_RESOURCE_ID = "d09adf99-dc10-4349-8c53-27b1e5aa97b6"
 
 MAX_PARALLEL = 5
 
+USER_AGENT = "Mozilla/5.0 (compatible; WhistleblowingMonitorItalia/1.0; +https://test.infosecurity.ch)"
+
 for d in (DB_DIR, EXPORTS_DIR, POLICIES_DIR):
     d.mkdir(parents=True, exist_ok=True)

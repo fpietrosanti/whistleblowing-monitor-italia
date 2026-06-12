@@ -16,15 +16,13 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Optional
 
-from src.config import BASE_DIR
+from src.config import BASE_DIR, USER_AGENT
 
 # ---------------------------------------------------------------------------
 # Module-level singleton
 # ---------------------------------------------------------------------------
 _browser = None
 _playwright_ctx = None
-
-USER_AGENT = "WhistleblowingMonitorItalia/1.0 (+https://test.infosecurity.ch)"
 VIEWPORT = {"width": 1280, "height": 720}
 
 # Resource types to block for speed

@@ -5,9 +5,8 @@ import time
 
 from bs4 import BeautifulSoup
 
+from src.config import USER_AGENT
 from src.logging_config import save_http_debug, save_raw_html
-
-USER_AGENT = "WhistleblowingMonitorItalia/1.0 (+https://test.infosecurity.ch)"
 
 # --- Regex patterns ---
 
@@ -17,16 +16,14 @@ _EMAIL_RE = re.compile(
 
 # Italian phone: +39 0XX XXXXXXX, 0XX/XXXXXXX, 0XX.XXXXXXX, 0XX-XXXXXXX
 _PHONE_RE = re.compile(
-    r"(?:\+39\s?)?"           # optional +39 prefix
-    r"0\d{1,3}"              # area code starting with 0
-    r"[\s/.\-]?"             # separator
-    r"\d{4,8}",              # local number
+    r"(?:\+39\s?)?"  # optional +39 prefix
+    r"0\d{1,3}"  # area code starting with 0
+    r"[\s/.\-]?"  # separator
+    r"\d{4,8}",  # local number
 )
 
 # Titles preceding a name
-_TITLE_PREFIX = (
-    r"(?:Dott\.ssa|Dott\.|Dr\.ssa|Dr\.|Prof\.ssa|Prof\.|Ing\.|Avv\.|Arch\.)"
-)
+_TITLE_PREFIX = r"(?:Dott\.ssa|Dott\.|Dr\.ssa|Dr\.|Prof\.ssa|Prof\.|Ing\.|Avv\.|Arch\.)"
 
 # Name pattern: optional title + capitalised words
 _NAME_RE = re.compile(
@@ -94,7 +91,7 @@ def _extract_near_label(
 
         if name is None:
             # Search for name after the label
-            after_label = text[m.end(): m.end() + window]
+            after_label = text[m.end() : m.end() + window]
             name_m = _NAME_RE.search(after_label)
             if name_m:
                 # Use the full match (including title prefix if present)
@@ -179,9 +176,7 @@ async def extract_rpct_contacts(
 
     # --- Extract RPCT info ---
     try:
-        rpct_name, rpct_email, rpct_phone = _extract_near_label(
-            text, _RPCT_LABELS
-        )
+        rpct_name, rpct_email, rpct_phone = _extract_near_label(text, _RPCT_LABELS)
         result["rpct_name"] = rpct_name
         result["rpct_email"] = rpct_email
         result["rpct_phone"] = rpct_phone
@@ -199,9 +194,7 @@ async def extract_rpct_contacts(
     # --- Fallback: try "Amministrazione Trasparente" main page ---
     rpct_found = result["rpct_name"] or result["rpct_email"]
     if not rpct_found and site_url:
-        logger.info(
-            "rpct: no RPCT info on WB page, trying Amministrazione Trasparente"
-        )
+        logger.info("rpct: no RPCT info on WB page, trying Amministrazione Trasparente")
         try:
             at_url = site_url.rstrip("/") + "/amministrazione-trasparente"
             t0 = time.monotonic()
@@ -227,14 +220,14 @@ async def extract_rpct_contacts(
 
             if resp.status_code == 200:
                 save_raw_html(
-                    scan_run_id, cod_amm,
-                    "at_page_fallback.html", resp.text,
+                    scan_run_id,
+                    cod_amm,
+                    "at_page_fallback.html",
+                    resp.text,
                 )
 
                 at_text = _get_text_blocks(resp.text)
-                name, email, phone = _extract_near_label(
-                    at_text, _RPCT_LABELS
-                )
+                name, email, phone = _extract_near_label(at_text, _RPCT_LABELS)
 
                 if name and not result["rpct_name"]:
                     result["rpct_name"] = name
@@ -245,7 +238,9 @@ async def extract_rpct_contacts(
 
                 logger.info(
                     "rpct: AT fallback found name=%s email=%s phone=%s",
-                    name, email, phone,
+                    name,
+                    email,
+                    phone,
                 )
             else:
                 logger.info(
@@ -256,8 +251,7 @@ async def extract_rpct_contacts(
             logger.error("rpct: error fetching AT fallback page: %s", exc)
 
     logger.info(
-        "rpct: results for %s — name=%s, email=%s, phone=%s, "
-        "wb_email=%s, wb_phone=%s",
+        "rpct: results for %s — name=%s, email=%s, phone=%s, wb_email=%s, wb_phone=%s",
         cod_amm,
         result["rpct_name"],
         result["rpct_email"],

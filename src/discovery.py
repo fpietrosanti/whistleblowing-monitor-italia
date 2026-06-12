@@ -21,11 +21,10 @@ from urllib.parse import urljoin, urlparse
 import httpx
 from bs4 import BeautifulSoup
 
+from src.config import USER_AGENT
 from src.logging_config import save_raw_html, save_http_debug
 
 # ── constants ────────────────────────────────────────────────────────────────
-
-USER_AGENT = "WhistleblowingMonitorItalia/1.0 (+https://test.infosecurity.ch)"
 REQUEST_TIMEOUT = 15.0
 MAX_REDIRECTS = 5
 

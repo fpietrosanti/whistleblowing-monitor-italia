@@ -10,9 +10,8 @@ import time
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse
 
+from src.config import USER_AGENT
 from src.logging_config import save_http_debug, save_raw_html
-
-USER_AGENT = "WhistleblowingMonitorItalia/1.0 (+https://test.infosecurity.ch)"
 
 # ---------------------------------------------------------------------------
 # Known WB platform domains
@@ -38,9 +37,7 @@ CHANNEL_TEXT_PATTERNS = re.compile(
 )
 
 # Email regex (simple, good enough for mailto: and inline addresses)
-EMAIL_RE = re.compile(
-    r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", re.ASCII
-)
+EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", re.ASCII)
 
 
 # ---------------------------------------------------------------------------
@@ -133,9 +130,7 @@ def _find_channel_url(
     return None
 
 
-def _find_email_channel(
-    wb_links: list[dict], wb_page_html: str
-) -> str | None:
+def _find_email_channel(wb_links: list[dict], wb_page_html: str) -> str | None:
     """Find a reporting email address from links or page HTML."""
     # Check mailto: links first
     for link in wb_links or []:
@@ -166,9 +161,7 @@ _CIE_RE = re.compile(r"\bcie\b|carta\s+d.?identit", re.IGNORECASE)
 _LOGIN_RE = re.compile(
     r"login|accedi|autenticazione|registra|sign.?in|log.?in", re.IGNORECASE
 )
-_ANON_RE = re.compile(
-    r"anon[io]m[ao]|senza\s+registrazione|anonymous", re.IGNORECASE
-)
+_ANON_RE = re.compile(r"anon[io]m[ao]|senza\s+registrazione|anonymous", re.IGNORECASE)
 
 
 def _analyse_channel_page(html: str) -> dict:

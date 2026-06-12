@@ -8,10 +8,9 @@ from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
-from src.config import POLICIES_DIR
+from src.config import POLICIES_DIR, USER_AGENT
 from src.logging_config import save_http_debug, save_raw_html
 
-USER_AGENT = "WhistleblowingMonitorItalia/1.0 (+https://test.infosecurity.ch)"
 MAX_PDF_SIZE = 50 * 1024 * 1024  # 50 MB
 DOWNLOAD_TIMEOUT = 30  # seconds
 
@@ -54,18 +53,22 @@ def _find_pdf_links(html: str, base_url: str) -> list[dict]:
         # Accept: explicit .pdf links, or keyword-matched links (might be
         # PDF behind a redirect / dynamic URL)
         if is_pdf_ext or (text_match and href_match):
-            candidates.append({
-                "url": full_url,
-                "text": link_text,
-                "score": (2 if text_match else 0) + (1 if is_pdf_ext else 0),
-            })
+            candidates.append(
+                {
+                    "url": full_url,
+                    "text": link_text,
+                    "score": (2 if text_match else 0) + (1 if is_pdf_ext else 0),
+                }
+            )
         elif is_pdf_ext:
             # Generic PDF — lower priority
-            candidates.append({
-                "url": full_url,
-                "text": link_text,
-                "score": 0,
-            })
+            candidates.append(
+                {
+                    "url": full_url,
+                    "text": link_text,
+                    "score": 0,
+                }
+            )
 
     # Sort by relevance score descending
     candidates.sort(key=lambda c: c["score"], reverse=True)
@@ -159,9 +162,7 @@ async def download_wb_policy(
             )
 
             if resp.status_code != 200:
-                logger.warning(
-                    "policy: HTTP %d for %s", resp.status_code, pdf_url
-                )
+                logger.warning("policy: HTTP %d for %s", resp.status_code, pdf_url)
                 continue
 
             content = resp.content
@@ -214,9 +215,7 @@ async def download_wb_policy(
             return result
 
         except Exception as exc:
-            logger.error(
-                "policy: error downloading PDF from %s: %s", pdf_url, exc
-            )
+            logger.error("policy: error downloading PDF from %s: %s", pdf_url, exc)
             continue
 
     # All candidates failed to download

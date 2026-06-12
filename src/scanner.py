@@ -13,8 +13,13 @@ from datetime import datetime, timezone
 
 import httpx
 
-from src.browser import close_browser, fetch_with_browser, init_browser, should_use_browser
-from src.config import MAX_PARALLEL
+from src.browser import (
+    close_browser,
+    fetch_with_browser,
+    init_browser,
+    should_use_browser,
+)
+from src.config import MAX_PARALLEL, USER_AGENT
 from src.db import get_db, init_db
 from src.discovery import discover_wb_section
 from src.exporter import export_all
@@ -26,15 +31,11 @@ from src.rpct import extract_rpct_contacts
 
 logger = logging.getLogger("wbmonitor.scanner")
 
-USER_AGENT = (
-    "WBMonitor-Italia/1.0 "
-    "(+https://github.com/whistleblowing-monitor-italia; research project)"
-)
-
 
 # ---------------------------------------------------------------------------
 # Database helpers
 # ---------------------------------------------------------------------------
+
 
 def _create_scan_run() -> int:
     """Insert a new scan_run row and return its id."""
@@ -196,6 +197,7 @@ def _log_scan_error(
 # Single-PA scanner
 # ---------------------------------------------------------------------------
 
+
 async def scan_single_pa(
     scan_run_id: int,
     cod_amm: str,
@@ -222,7 +224,11 @@ async def scan_single_pa(
             results["site_http_status"] = resp.status_code
             results["site_reachable"] = 1
             homepage_html = resp.text
-            pa_logger.info("Homepage fetched — HTTP %d (%d bytes)", resp.status_code, len(homepage_html))
+            pa_logger.info(
+                "Homepage fetched — HTTP %d (%d bytes)",
+                resp.status_code,
+                len(homepage_html),
+            )
 
             # Check if browser rendering is needed
             if await should_use_browser(homepage_html, resp.status_code):
@@ -231,7 +237,9 @@ async def scan_single_pa(
                 if browser_result:
                     homepage_html = browser_result
                     results["render_mode"] = "browser"
-                    pa_logger.info("Browser fetch complete (%d bytes)", len(homepage_html))
+                    pa_logger.info(
+                        "Browser fetch complete (%d bytes)", len(homepage_html)
+                    )
 
         except httpx.HTTPError as exc:
             results["site_reachable"] = 0
@@ -243,12 +251,18 @@ async def scan_single_pa(
             results["scan_duration_s"] = round(time.monotonic() - t0, 2)
             _save_pa_scan(scan_run_id, cod_amm, results)
             save_scan_summary(scan_run_id_str, cod_amm, results)
-            pa_logger.info("Scan complete (site unreachable) — %.1fs", results["scan_duration_s"])
+            pa_logger.info(
+                "Scan complete (site unreachable) — %.1fs", results["scan_duration_s"]
+            )
             return results
 
         # ---- Step 2: discovery ----
         discovery = await discover_wb_section(
-            cod_amm, scan_run_id_str, site_url, http_client, pa_logger,
+            cod_amm,
+            scan_run_id_str,
+            site_url,
+            http_client,
+            pa_logger,
             homepage_html=homepage_html,
         )
         results["wb_section_found"] = discovery.get("wb_section_found", 0)
@@ -260,7 +274,9 @@ async def scan_single_pa(
 
         # ---- Step 3: probe (if section found) ----
         if results["wb_section_found"]:
-            pa_logger.info("WB section found at %s — probing channel", results["wb_section_url"])
+            pa_logger.info(
+                "WB section found at %s — probing channel", results["wb_section_url"]
+            )
             probe_result = await probe_wb_channel(
                 cod_amm,
                 scan_run_id_str,
@@ -271,16 +287,24 @@ async def scan_single_pa(
                 pa_logger,
             )
             for key in (
-                "wb_digital_channel", "wb_channel_url", "wb_channel_reachable",
-                "wb_channel_type", "wb_requires_auth", "wb_auth_type",
-                "wb_anonymous_allowed", "wb_strong_auth_required",
-                "wb_email", "wb_phone",
+                "wb_digital_channel",
+                "wb_channel_url",
+                "wb_channel_reachable",
+                "wb_channel_type",
+                "wb_requires_auth",
+                "wb_auth_type",
+                "wb_anonymous_allowed",
+                "wb_strong_auth_required",
+                "wb_email",
+                "wb_phone",
             ):
                 if key in probe_result:
                     results[key] = probe_result[key]
 
             # ---- Step 4: fingerprint (if channel found) ----
-            if probe_result.get("wb_digital_channel") and probe_result.get("wb_channel_url"):
+            if probe_result.get("wb_digital_channel") and probe_result.get(
+                "wb_channel_url"
+            ):
                 pa_logger.info("Digital channel found — fingerprinting software")
                 channel_html = probe_result.get("channel_html", "")
                 fp = await fingerprint_software(
@@ -291,17 +315,30 @@ async def scan_single_pa(
                     http_client,
                     pa_logger,
                 )
-                for key in ("wb_software", "wb_software_version", "wb_software_confidence"):
+                for key in (
+                    "wb_software",
+                    "wb_software_version",
+                    "wb_software_confidence",
+                ):
                     if key in fp:
                         results[key] = fp[key]
 
         # ---- Step 5: policy + RPCT in parallel ----
         policy_coro = download_wb_policy(
-            cod_amm, scan_run_id_str, wb_page_html, results.get("wb_section_url") or site_url,
-            http_client, pa_logger,
+            cod_amm,
+            scan_run_id_str,
+            wb_page_html,
+            results.get("wb_section_url") or site_url,
+            http_client,
+            pa_logger,
         )
         rpct_coro = extract_rpct_contacts(
-            cod_amm, scan_run_id_str, wb_page_html, site_url, http_client, pa_logger,
+            cod_amm,
+            scan_run_id_str,
+            wb_page_html,
+            site_url,
+            http_client,
+            pa_logger,
         )
         policy_result, rpct_result = await asyncio.gather(
             policy_coro, rpct_coro, return_exceptions=True
@@ -311,7 +348,12 @@ async def scan_single_pa(
             pa_logger.error("Policy download failed: %s", policy_result)
             _log_scan_error(scan_run_id, cod_amm, "policy_download", policy_result)
         else:
-            for key in ("wb_policy_visible", "wb_policy_url", "wb_policy_pdf_path", "wb_policy_pdf_hash"):
+            for key in (
+                "wb_policy_visible",
+                "wb_policy_url",
+                "wb_policy_pdf_path",
+                "wb_policy_pdf_hash",
+            ):
                 if key in policy_result:
                     results[key] = policy_result[key]
 
@@ -340,6 +382,7 @@ async def scan_single_pa(
 # ---------------------------------------------------------------------------
 # Full-scan orchestrator
 # ---------------------------------------------------------------------------
+
 
 async def run_full_scan(
     max_parallel: int = MAX_PARALLEL,
@@ -429,7 +472,10 @@ async def run_full_scan(
     _finish_scan_run(scan_run_id, total, scanned, errors)
     logger.info(
         "=== Scan run %d finished — total=%d scanned=%d errors=%d ===",
-        scan_run_id, total, scanned, errors,
+        scan_run_id,
+        total,
+        scanned,
+        errors,
     )
 
     # Export results
@@ -450,6 +496,7 @@ async def run_full_scan(
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -498,7 +545,9 @@ def main():
         format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
     )
 
-    summary = asyncio.run(run_full_scan(max_parallel=args.max_parallel, pa_filter=pa_filter))
+    summary = asyncio.run(
+        run_full_scan(max_parallel=args.max_parallel, pa_filter=pa_filter)
+    )
     print(f"\nScan complete: {summary}")
 
 
