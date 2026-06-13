@@ -119,12 +119,19 @@ WB_KEYWORDS_MEDIUM = [
 # Combined for link matching (broader)
 WB_KEYWORDS_ALL = WB_KEYWORDS_HIGH + WB_KEYWORDS_MEDIUM
 
-# Keywords that identify the "Amministrazione Trasparente" landing page
+# Keywords that identify the "Amministrazione Trasparente" landing page.
+# Private-law entities (SpA/Srl) publish under "Società Trasparente" instead,
+# often on an external portaletrasparenza.net-style portal — treat it the same.
 AT_KEYWORDS = [
     "amministrazione trasparente",
     "amm. trasparente",
     "amministrazione-trasparente",
     "trasparenza",
+    "società trasparente",
+    "societa trasparente",
+    "societa-trasparente",
+    "portaletrasparenza",
+    "trasparente",
 ]
 
 # Sub-section keywords to follow inside AT page
