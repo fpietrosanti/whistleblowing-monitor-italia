@@ -429,24 +429,46 @@ async def run_full_scan(
         except Exception as exc:
             logger.warning("Browser init failed (will use httpx only): %s", exc)
 
-        # Build tasks — skip PAs without a website
-        tasks = []
+        # Build work list — skip PAs without a website
+        work_items: list[tuple[str, str]] = []
         skipped = 0
         for pa in pa_list:
             site_url = (pa.get("sito_web") or "").strip()
             if not site_url:
                 skipped += 1
                 continue
-            # Normalize URL
             if not site_url.startswith(("http://", "https://")):
                 site_url = f"https://{site_url}"
-            tasks.append(_scan_with_semaphore(pa["cod_amm"], site_url))
+            work_items.append((pa["cod_amm"], site_url))
 
         if skipped:
             logger.info("Skipped %d PAs with no sito_web", skipped)
 
-        # Execute all tasks
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Process in batches to avoid file descriptor exhaustion
+        BATCH_SIZE = max_parallel * 10
+        scanned = 0
+        errors = 0
+        for batch_start in range(0, len(work_items), BATCH_SIZE):
+            batch = work_items[batch_start : batch_start + BATCH_SIZE]
+            tasks = [_scan_with_semaphore(cod, url) for cod, url in batch]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for r in results:
+                if isinstance(r, Exception):
+                    errors += 1
+                    logger.error("Task-level exception: %s", r)
+                    _log_scan_error(scan_run_id, None, "task_gather", r)
+                else:
+                    scanned += 1
+                    if r.get("notes") and "Unhandled error" in str(r.get("notes", "")):
+                        errors += 1
+
+            logger.info(
+                "Progress: %d/%d scanned, %d errors",
+                batch_start + len(batch),
+                len(work_items),
+                errors,
+            )
 
     # Close browser
     if browser_initialized:
@@ -456,35 +478,19 @@ async def run_full_scan(
         except Exception as exc:
             logger.warning("Browser close error: %s", exc)
 
-    # Count results
-    scanned = 0
-    errors = 0
-    for r in results:
-        if isinstance(r, Exception):
-            errors += 1
-            logger.error("Task-level exception: %s", r)
-            _log_scan_error(scan_run_id, None, "task_gather", r)
-        else:
-            scanned += 1
-            if r.get("notes") and "Unhandled error" in str(r.get("notes", "")):
-                errors += 1
-
+    # Update run (scanned/errors already counted above)
+    # (skip the old counting loop below, jump to _finish_scan_run)
     _finish_scan_run(scan_run_id, total, scanned, errors)
+    try:
+        export_all()
+    except Exception as exc:
+        logger.error("Export failed: %s", exc)
     logger.info(
-        "=== Scan run %d finished — total=%d scanned=%d errors=%d ===",
+        "=== Scan run %s finished — scanned=%d errors=%d ===",
         scan_run_id,
-        total,
         scanned,
         errors,
     )
-
-    # Export results
-    try:
-        export_all()
-        logger.info("Export complete")
-    except Exception as exc:
-        logger.error("Export failed: %s", exc)
-
     return {
         "scan_run_id": scan_run_id,
         "total": total,
