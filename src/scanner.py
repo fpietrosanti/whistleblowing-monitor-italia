@@ -234,11 +234,27 @@ async def scan_single_pa(
             if await should_use_browser(homepage_html, resp.status_code):
                 pa_logger.info("Browser rendering required, re-fetching with browser")
                 browser_result = await fetch_with_browser(site_url, pa_logger)
-                if browser_result:
-                    homepage_html = browser_result
+                # fetch_with_browser returns a dict {html, status, ...}
+                browser_html = (
+                    browser_result.get("html")
+                    if isinstance(browser_result, dict)
+                    else browser_result
+                )
+                # Only adopt the browser render if it actually has MORE content
+                # than the httpx homepage — otherwise keep the good httpx HTML
+                # (menu-heavy PA pages render fine over httpx and a worse browser
+                #  render would strip the navigation links discovery relies on).
+                if browser_html and len(browser_html) > len(homepage_html):
+                    homepage_html = browser_html
                     results["render_mode"] = "browser"
                     pa_logger.info(
-                        "Browser fetch complete (%d bytes)", len(homepage_html)
+                        "Browser fetch adopted (%d bytes)", len(homepage_html)
+                    )
+                else:
+                    pa_logger.info(
+                        "Browser fetch discarded (httpx HTML kept: %d vs %d bytes)",
+                        len(homepage_html),
+                        len(browser_html or ""),
                     )
 
         except httpx.HTTPError as exc:

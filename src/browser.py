@@ -134,6 +134,12 @@ async def should_use_browser(html_content: str, http_status: int) -> bool:
     The function is async for interface consistency with the rest of the
     module; all checks are synchronous and fast.
     """
+    # 0. A page with many anchor links is a real rendered page, not a JS shell —
+    #    PA homepages are menu-heavy (little prose) and would otherwise be
+    #    misclassified as empty and sent to the browser (which strips links).
+    if html_content and html_content.count("<a ") >= 10:
+        return False
+
     # 1. Very short visible body text
     if _body_text_length(html_content) < 500:
         return True
