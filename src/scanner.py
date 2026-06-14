@@ -37,12 +37,12 @@ logger = logging.getLogger("wbmonitor.scanner")
 # ---------------------------------------------------------------------------
 
 
-def _create_scan_run() -> int:
+def _create_scan_run(mode: str = "browser") -> int:
     """Insert a new scan_run row and return its id."""
     with get_db() as db:
         cur = db.execute(
-            "INSERT INTO scan_run (started_at, status) VALUES (?, 'running')",
-            (datetime.now(timezone.utc).isoformat(),),
+            "INSERT INTO scan_run (started_at, status, mode) VALUES (?, 'running', ?)",
+            (datetime.now(timezone.utc).isoformat(), mode),
         )
         return cur.lastrowid
 
@@ -203,8 +203,12 @@ async def scan_single_pa(
     cod_amm: str,
     site_url: str,
     http_client: httpx.AsyncClient,
+    mode: str = "browser",
 ) -> dict:
-    """Scan a single PA through the full pipeline. Never raises."""
+    """Scan a single PA through the full pipeline. Never raises.
+
+    mode "python" skips the Playwright browser fallback entirely.
+    """
 
     scan_run_id_str = str(scan_run_id)
     pa_logger = setup_scan_logging(scan_run_id_str, cod_amm)
@@ -230,8 +234,10 @@ async def scan_single_pa(
                 len(homepage_html),
             )
 
-            # Check if browser rendering is needed
-            if await should_use_browser(homepage_html, resp.status_code):
+            # Check if browser rendering is needed (skipped in python-only mode)
+            if mode != "python" and await should_use_browser(
+                homepage_html, resp.status_code
+            ):
                 pa_logger.info("Browser rendering required, re-fetching with browser")
                 browser_result = await fetch_with_browser(site_url, pa_logger)
                 # fetch_with_browser returns a dict {html, status, ...}
@@ -403,15 +409,22 @@ async def scan_single_pa(
 async def run_full_scan(
     max_parallel: int = MAX_PARALLEL,
     pa_filter: dict | None = None,
+    mode: str = "browser",
 ) -> dict:
     """Run the complete scanning pipeline.
+
+    mode:
+        "python"  — httpx + heuristics only, no browser fallback
+        "browser" — httpx + Playwright render fallback + heuristics (default)
+        (the "claude" gold-standard mode runs as a separate offline harness
+         over the dated archive, not through this async scanner)
 
     Returns a summary dict with counts and timing.
     """
     init_db()
 
-    scan_run_id = _create_scan_run()
-    logger.info("=== Scan run %d started ===", scan_run_id)
+    scan_run_id = _create_scan_run(mode=mode)
+    logger.info("=== Scan run %d started (mode=%s) ===", scan_run_id, mode)
 
     pa_list = _get_pa_list(pa_filter)
     total = len(pa_list)
@@ -435,15 +448,20 @@ async def run_full_scan(
 
         async def _scan_with_semaphore(cod_amm: str, site_url: str) -> dict:
             async with semaphore:
-                return await scan_single_pa(scan_run_id, cod_amm, site_url, http_client)
+                return await scan_single_pa(
+                    scan_run_id, cod_amm, site_url, http_client, mode=mode
+                )
 
-        # Pre-init browser so it's ready when needed
-        try:
-            await init_browser()
-            browser_initialized = True
-            logger.info("Browser initialized")
-        except Exception as exc:
-            logger.warning("Browser init failed (will use httpx only): %s", exc)
+        # Pre-init browser so it's ready when needed (skip in python-only mode)
+        if mode == "python":
+            logger.info("Mode=python — browser fallback disabled")
+        else:
+            try:
+                await init_browser()
+                browser_initialized = True
+                logger.info("Browser initialized")
+            except Exception as exc:
+                logger.warning("Browser init failed (will use httpx only): %s", exc)
 
         # Build work list — skip PAs without a website
         work_items: list[tuple[str, str]] = []
@@ -473,7 +491,10 @@ async def run_full_scan(
                 if isinstance(r, Exception):
                     errors += 1
                     logger.error("Task-level exception: %s", r)
-                    _log_scan_error(scan_run_id, None, "task_gather", r)
+                    try:
+                        _log_scan_error(scan_run_id, None, "task_gather", r)
+                    except Exception as log_exc:
+                        logger.error("Could not log task error: %s", log_exc)
                 else:
                     scanned += 1
                     if r.get("notes") and "Unhandled error" in str(r.get("notes", "")):
@@ -548,6 +569,14 @@ def main():
         default=None,
         help="only scan the first N PAs",
     )
+    parser.add_argument(
+        "--mode",
+        choices=["python", "browser"],
+        default="browser",
+        help="detection mode: 'python' (httpx+heuristics, no browser) or "
+        "'browser' (httpx+Playwright fallback, default). The 'claude' "
+        "gold-standard mode runs via the separate runners/claude harness.",
+    )
     args = parser.parse_args()
 
     # Build filter
@@ -568,7 +597,9 @@ def main():
     )
 
     summary = asyncio.run(
-        run_full_scan(max_parallel=args.max_parallel, pa_filter=pa_filter)
+        run_full_scan(
+            max_parallel=args.max_parallel, pa_filter=pa_filter, mode=args.mode
+        )
     )
     print(f"\nScan complete: {summary}")
 

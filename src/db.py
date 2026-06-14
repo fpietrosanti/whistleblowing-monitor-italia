@@ -1,7 +1,13 @@
 import sqlite3
+import time
 from contextlib import contextmanager
 
 from src.config import DB_PATH
+
+# Retry connect on transient failures ("unable to open database file" under
+# file-descriptor pressure during high-concurrency scans).
+_CONNECT_RETRIES = 6
+_CONNECT_BACKOFF = 0.25
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS scan_run (
@@ -11,7 +17,8 @@ CREATE TABLE IF NOT EXISTS scan_run (
     total_pa        INTEGER,
     scanned_pa      INTEGER,
     errors          INTEGER DEFAULT 0,
-    status          TEXT DEFAULT 'running'
+    status          TEXT DEFAULT 'running',
+    mode            TEXT DEFAULT 'browser'
 );
 
 CREATE TABLE IF NOT EXISTS pa (
@@ -125,12 +132,26 @@ def init_db():
         db.executescript(SCHEMA)
 
 
+def _connect() -> sqlite3.Connection:
+    """Open a SQLite connection, retrying transient open failures."""
+    last_exc = None
+    for attempt in range(_CONNECT_RETRIES):
+        try:
+            conn = sqlite3.connect(str(DB_PATH), timeout=30)
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=30000")
+            conn.execute("PRAGMA foreign_keys=ON")
+            return conn
+        except sqlite3.OperationalError as exc:
+            last_exc = exc
+            time.sleep(_CONNECT_BACKOFF * (attempt + 1))
+    raise last_exc
+
+
 @contextmanager
 def get_db():
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
+    conn = _connect()
     try:
         yield conn
         conn.commit()
