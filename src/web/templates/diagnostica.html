@@ -105,6 +105,58 @@
     </div>
 </div>
 
+{# Per-attempt step ledger — every step we manage or fail, per phase, with method #}
+<div class="card card-bg mb-4">
+    <div class="card-body">
+        <h5 class="card-title">Registro Step (per tentativo)</h5>
+        {% if step_ledger %}
+        <p class="text-muted small mb-2">Per ogni fase e step: quanti enti lo raggiungono, esito dei tentativi, metodi che hanno funzionato e cause di fallimento.</p>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle" style="font-size:.85rem">
+                <thead class="table-light">
+                    <tr>
+                        <th>Fase</th>
+                        <th>Step</th>
+                        <th class="text-end">Enti</th>
+                        <th class="text-end">Enti OK</th>
+                        <th class="text-center">Esiti tentativi</th>
+                        <th>Metodi vincenti</th>
+                        <th>Cause fallimento</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in step_ledger %}
+                    <tr>
+                        <td><span class="badge {% if s.phase == 'discovery' %}bg-primary{% else %}bg-info text-dark{% endif %}">{{ s.phase }}</span></td>
+                        <td><code>{{ s.step }}</code></td>
+                        <td class="text-end">{{ s.enti }}</td>
+                        <td class="text-end">
+                            <strong class="{% if s.enti_ok %}text-success{% endif %}">{{ s.enti_ok }}</strong>
+                            {% if s.enti %}<small class="text-muted">({{ (s.enti_ok / s.enti * 100)|round(0)|int }}%)</small>{% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if s.ok_attempts %}<span class="badge bg-success" title="ok">{{ s.ok_attempts }}</span>{% endif %}
+                            {% if s.fail_attempts %}<span class="badge bg-danger" title="fail">{{ s.fail_attempts }}</span>{% endif %}
+                            {% if s.partial_attempts %}<span class="badge bg-warning text-dark" title="partial">{{ s.partial_attempts }}</span>{% endif %}
+                            {% if s.skip_attempts %}<span class="badge bg-secondary" title="skip">{{ s.skip_attempts }}</span>{% endif %}
+                        </td>
+                        <td>
+                            {% for m in s.methods %}<span class="badge bg-light text-dark border me-1 mb-1"><code>{{ m.method }}</code> {{ m.cnt }}</span>{% endfor %}
+                        </td>
+                        <td>
+                            {% for r in s.reasons %}<span class="badge bg-light text-danger border me-1 mb-1">{{ r.reason }} {{ r.cnt }}</span>{% endfor %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">Nessun dato nel registro step per questa scansione (popolato dalle scansioni eseguite con il codice aggiornato).</p>
+        {% endif %}
+    </div>
+</div>
+
 {# Filters + Table #}
 <div class="card card-bg mb-4">
     <div class="card-body">

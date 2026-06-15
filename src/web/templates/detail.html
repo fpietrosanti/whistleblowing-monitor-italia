@@ -239,4 +239,38 @@
     </table>
 </div>
 {% endif %}
+
+{% if steps %}
+<h3 class="mt-4 mb-3">Registro Step (ultima scansione)</h3>
+<p class="text-muted small">Ogni tentativo eseguito su questo ente, per fase e step, con metodo ed esito.</p>
+<div class="table-responsive">
+    <table class="table table-sm align-middle" style="font-size:.88rem">
+        <thead>
+            <tr>
+                <th>Fase</th>
+                <th>Step</th>
+                <th>Metodo</th>
+                <th class="text-center">Esito</th>
+                <th>Dettaglio / Motivo</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for st in steps %}
+            <tr>
+                <td><span class="badge {% if st.phase == 'discovery' %}bg-primary{% else %}bg-info text-dark{% endif %}">{{ st.phase }}</span></td>
+                <td><code>{{ st.step }}</code></td>
+                <td>{% if st.method %}<code>{{ st.method }}</code>{% else %}—{% endif %}</td>
+                <td class="text-center">
+                    {% if st.status == 'ok' %}<span class="badge bg-success">ok</span>
+                    {% elif st.status == 'fail' %}<span class="badge bg-danger">fail</span>
+                    {% elif st.status == 'partial' %}<span class="badge bg-warning text-dark">partial</span>
+                    {% else %}<span class="badge bg-secondary">{{ st.status }}</span>{% endif %}
+                </td>
+                <td><small>{{ st.detail or st.reason or '' }}</small></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
 {% endblock %}

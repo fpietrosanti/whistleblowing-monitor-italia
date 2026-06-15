@@ -124,6 +124,27 @@ CREATE TABLE IF NOT EXISTS scan_error_log (
     url             TEXT,
     occurred_at     TEXT NOT NULL
 );
+
+-- Per-attempt step ledger: one row per method ATTEMPTED within each step,
+-- for every PA × scan. Tracks everything we manage or fail to do, per ente,
+-- per phase (discovery | analysis), per step, with which method and why.
+CREATE TABLE IF NOT EXISTS pa_scan_step (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    scan_run_id     INTEGER NOT NULL REFERENCES scan_run(id),
+    cod_amm         TEXT NOT NULL,
+    phase           TEXT NOT NULL,   -- discovery | analysis
+    step            TEXT NOT NULL,   -- site_fetch, section_discovery, channel_detect, ...
+    seq             INTEGER,         -- attempt order within the step
+    method          TEXT,            -- method/strategy attempted
+    status          TEXT NOT NULL,   -- ok | fail | skip | partial
+    reason          TEXT,            -- failure reason when status != ok
+    detail          TEXT,
+    occurred_at     TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_pa_scan_step_run ON pa_scan_step(scan_run_id);
+CREATE INDEX IF NOT EXISTS idx_pa_scan_step_cod ON pa_scan_step(scan_run_id, cod_amm);
+CREATE INDEX IF NOT EXISTS idx_pa_scan_step_step ON pa_scan_step(scan_run_id, step);
 """
 
 
@@ -164,3 +185,35 @@ def query_db(sql, params=(), one=False):
         cur = db.execute(sql, params)
         rows = cur.fetchall()
         return rows[0] if one and rows else rows if not one else None
+
+
+def save_pa_steps(scan_run_id, cod_amm, steps):
+    """Bulk-insert the per-attempt step ledger for one PA in a single tx.
+
+    steps: list of dicts with keys phase, step, method, status, reason, detail.
+    `seq` is assigned automatically from list order.
+    """
+    if not steps:
+        return
+    rows = [
+        (
+            scan_run_id,
+            cod_amm,
+            s.get("phase"),
+            s.get("step"),
+            i,
+            s.get("method"),
+            s.get("status"),
+            s.get("reason"),
+            s.get("detail"),
+        )
+        for i, s in enumerate(steps)
+    ]
+    with get_db() as db:
+        db.executemany(
+            """INSERT INTO pa_scan_step
+                   (scan_run_id, cod_amm, phase, step, seq, method, status,
+                    reason, detail, occurred_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
+            rows,
+        )

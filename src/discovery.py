@@ -852,7 +852,17 @@ async def discover_wb_section(
     base_url = _normalize_site_url(site_url)
     if not base_url:
         logger.warning("[%s] Empty or invalid site_url: %r", cod_amm, site_url)
-        return _empty_result()
+        res = _empty_result()
+        res["attempts"] = [
+            {
+                "phase": "discovery",
+                "step": "section_discovery",
+                "method": None,
+                "status": "skip",
+                "reason": "no_site_url",
+            }
+        ]
+        return res
 
     logger.info("[%s] Starting WB discovery on %s", cod_amm, base_url)
 
@@ -897,13 +907,45 @@ async def discover_wb_section(
         ),
     ]
 
+    attempts: list[dict] = []
     for name, strategy_fn in strategies:
         try:
             result = await strategy_fn()
             if result:
+                # winning strategy — record the precise method (e.g. menu_crawl:ext)
+                attempts.append(
+                    {
+                        "phase": "discovery",
+                        "step": "section_discovery",
+                        "method": result.get("discovery_method", name),
+                        "status": "ok",
+                        "detail": result.get("wb_section_url"),
+                    }
+                )
+                result["attempts"] = attempts
                 return result
+            attempts.append(
+                {
+                    "phase": "discovery",
+                    "step": "section_discovery",
+                    "method": name,
+                    "status": "fail",
+                    "reason": "no_match",
+                }
+            )
         except Exception as exc:
             logger.error("[%s] %s strategy failed: %s", cod_amm, name, exc)
+            attempts.append(
+                {
+                    "phase": "discovery",
+                    "step": "section_discovery",
+                    "method": name,
+                    "status": "fail",
+                    "reason": type(exc).__name__,
+                }
+            )
 
     logger.info("[%s] No WB section found after all 7 strategies", cod_amm)
-    return _empty_result()
+    res = _empty_result()
+    res["attempts"] = attempts
+    return res

@@ -20,7 +20,7 @@ from src.browser import (
     should_use_browser,
 )
 from src.config import MAX_PARALLEL, USER_AGENT
-from src.db import get_db, init_db
+from src.db import get_db, init_db, save_pa_steps
 from src.discovery import discover_wb_section
 from src.exporter import export_all
 from src.fingerprint import fingerprint_software
@@ -172,6 +172,14 @@ def _save_pa_scan(scan_run_id: int, cod_amm: str, results: dict):
         )
 
 
+def _save_steps_safe(scan_run_id: int, cod_amm: str, steps: list):
+    """Persist the per-attempt step ledger; never let a DB blip fail the scan."""
+    try:
+        save_pa_steps(scan_run_id, cod_amm, steps)
+    except Exception as exc:
+        logger.error("Could not save step ledger for %s: %s", cod_amm, exc)
+
+
 def _log_scan_error(
     scan_run_id: int,
     cod_amm: str | None,
@@ -223,6 +231,8 @@ async def scan_single_pa(
         "site_reachable": 0,
         "render_mode": "httpx",
     }
+    # Per-attempt step ledger for this PA (saved at the end).
+    steps: list[dict] = []
 
     try:
         # ---- Step 1: fetch homepage ----
@@ -232,6 +242,15 @@ async def scan_single_pa(
             results["site_http_status"] = resp.status_code
             results["site_reachable"] = 1
             homepage_html = resp.text
+            steps.append(
+                {
+                    "phase": "discovery",
+                    "step": "site_fetch",
+                    "method": "httpx",
+                    "status": "ok",
+                    "detail": f"HTTP {resp.status_code}",
+                }
+            )
             pa_logger.info(
                 "Homepage fetched — HTTP %d (%d bytes)",
                 resp.status_code,
@@ -257,10 +276,28 @@ async def scan_single_pa(
                 if browser_html and len(browser_html) > len(homepage_html):
                     homepage_html = browser_html
                     results["render_mode"] = "browser"
+                    steps.append(
+                        {
+                            "phase": "discovery",
+                            "step": "render_decision",
+                            "method": "browser",
+                            "status": "ok",
+                            "detail": "browser render adopted",
+                        }
+                    )
                     pa_logger.info(
                         "Browser fetch adopted (%d bytes)", len(homepage_html)
                     )
                 else:
+                    steps.append(
+                        {
+                            "phase": "discovery",
+                            "step": "render_decision",
+                            "method": "httpx-kept",
+                            "status": "ok",
+                            "detail": "browser discarded, httpx kept",
+                        }
+                    )
                     pa_logger.info(
                         "Browser fetch discarded (httpx HTML kept: %d vs %d bytes)",
                         len(homepage_html),
@@ -270,12 +307,22 @@ async def scan_single_pa(
         except httpx.HTTPError as exc:
             results["site_reachable"] = 0
             results["site_error"] = str(exc)[:500]
+            steps.append(
+                {
+                    "phase": "discovery",
+                    "step": "site_fetch",
+                    "method": "httpx",
+                    "status": "fail",
+                    "reason": type(exc).__name__,
+                }
+            )
             pa_logger.warning("Homepage fetch failed: %s", exc)
             _log_scan_error(scan_run_id, cod_amm, "homepage_fetch", exc, url=site_url)
 
         if not homepage_html:
             results["scan_duration_s"] = round(time.monotonic() - t0, 2)
             _save_pa_scan(scan_run_id, cod_amm, results)
+            _save_steps_safe(scan_run_id, cod_amm, steps)
             save_scan_summary(scan_run_id_str, cod_amm, results)
             pa_logger.info(
                 "Scan complete (site unreachable) — %.1fs", results["scan_duration_s"]
@@ -295,6 +342,8 @@ async def scan_single_pa(
         results["wb_section_found"] = discovery.get("wb_section_found", 0)
         results["wb_section_url"] = discovery.get("wb_section_url")
         results["discovery_method"] = discovery.get("discovery_method", "none")
+        # record every discovery strategy attempt (per-attempt ledger)
+        steps.extend(discovery.get("attempts", []))
 
         wb_page_html = discovery.get("wb_page_html", homepage_html)
         wb_links = discovery.get("wb_links", [])
@@ -328,6 +377,51 @@ async def scan_single_pa(
                 if key in probe_result:
                     results[key] = probe_result[key]
 
+            # analysis: channel detection + reachability + anonymity
+            if results.get("wb_digital_channel"):
+                steps.append(
+                    {
+                        "phase": "analysis",
+                        "step": "channel_detect",
+                        "method": results.get("wb_channel_type") or "link",
+                        "status": "ok",
+                        "detail": results.get("wb_channel_url"),
+                    }
+                )
+                steps.append(
+                    {
+                        "phase": "analysis",
+                        "step": "channel_reach",
+                        "method": "httpx",
+                        "status": "ok"
+                        if results.get("wb_channel_reachable")
+                        else "fail",
+                        "reason": None
+                        if results.get("wb_channel_reachable")
+                        else "channel_unreachable",
+                    }
+                )
+                anon = results.get("wb_anonymous_allowed")
+                steps.append(
+                    {
+                        "phase": "analysis",
+                        "step": "anonymity",
+                        "method": "keyword/form",
+                        "status": "ok" if anon is not None else "partial",
+                        "reason": None if anon is not None else "undetermined",
+                    }
+                )
+            else:
+                steps.append(
+                    {
+                        "phase": "analysis",
+                        "step": "channel_detect",
+                        "method": None,
+                        "status": "fail",
+                        "reason": "no_digital_channel",
+                    }
+                )
+
             # ---- Step 4: fingerprint (if channel found) ----
             if probe_result.get("wb_digital_channel") and probe_result.get(
                 "wb_channel_url"
@@ -349,6 +443,16 @@ async def scan_single_pa(
                 ):
                     if key in fp:
                         results[key] = fp[key]
+                steps.append(
+                    {
+                        "phase": "analysis",
+                        "step": "software_fp",
+                        "method": fp.get("wb_software_method") or "marker",
+                        "status": "ok" if results.get("wb_software") else "fail",
+                        "reason": None if results.get("wb_software") else "no_marker",
+                        "detail": results.get("wb_software"),
+                    }
+                )
 
         # ---- Step 5: policy + RPCT in parallel ----
         policy_coro = download_wb_policy(
@@ -374,6 +478,15 @@ async def scan_single_pa(
         if isinstance(policy_result, Exception):
             pa_logger.error("Policy download failed: %s", policy_result)
             _log_scan_error(scan_run_id, cod_amm, "policy_download", policy_result)
+            steps.append(
+                {
+                    "phase": "analysis",
+                    "step": "policy_pdf",
+                    "method": None,
+                    "status": "fail",
+                    "reason": type(policy_result).__name__,
+                }
+            )
         else:
             for key in (
                 "wb_policy_visible",
@@ -383,14 +496,45 @@ async def scan_single_pa(
             ):
                 if key in policy_result:
                     results[key] = policy_result[key]
+            steps.append(
+                {
+                    "phase": "analysis",
+                    "step": "policy_pdf",
+                    "method": "pdf-link",
+                    "status": "ok" if results.get("wb_policy_pdf_hash") else "fail",
+                    "reason": None
+                    if results.get("wb_policy_pdf_hash")
+                    else "no_pdf_found",
+                    "detail": results.get("wb_policy_url"),
+                }
+            )
 
         if isinstance(rpct_result, Exception):
             pa_logger.error("RPCT extraction failed: %s", rpct_result)
             _log_scan_error(scan_run_id, cod_amm, "rpct_extraction", rpct_result)
+            steps.append(
+                {
+                    "phase": "analysis",
+                    "step": "rpct_web",
+                    "method": None,
+                    "status": "fail",
+                    "reason": type(rpct_result).__name__,
+                }
+            )
         else:
             for key in ("rpct_email", "rpct_phone", "rpct_name"):
                 if key in rpct_result:
                     results[key] = rpct_result[key]
+            steps.append(
+                {
+                    "phase": "analysis",
+                    "step": "rpct_web",
+                    "method": "page/at-fallback",
+                    "status": "ok" if results.get("rpct_name") else "fail",
+                    "reason": None if results.get("rpct_name") else "not_on_page",
+                    "detail": results.get("rpct_name"),
+                }
+            )
 
     except Exception as exc:
         pa_logger.exception("Unhandled error scanning %s: %s", cod_amm, exc)
@@ -400,6 +544,7 @@ async def scan_single_pa(
     # ---- Finalize ----
     results["scan_duration_s"] = round(time.monotonic() - t0, 2)
     _save_pa_scan(scan_run_id, cod_amm, results)
+    _save_steps_safe(scan_run_id, cod_amm, steps)
     save_scan_summary(scan_run_id_str, cod_amm, results)
     pa_logger.info("Scan complete — %.1fs", results["scan_duration_s"])
 

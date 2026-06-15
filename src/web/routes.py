@@ -126,6 +126,24 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
             one=True,
         )
 
+        # Per-attempt step ledger for this PA's most recent scan that has one.
+        step_run = query_db(
+            "SELECT MAX(scan_run_id) as rid FROM pa_scan_step WHERE cod_amm = ?",
+            (cod_amm,),
+            one=True,
+        )
+        steps = []
+        if step_run and step_run["rid"]:
+            steps = query_db(
+                """
+                SELECT phase, step, seq, method, status, reason, detail
+                FROM pa_scan_step
+                WHERE cod_amm = ? AND scan_run_id = ?
+                ORDER BY id
+            """,
+                (cod_amm, step_run["rid"]),
+            )
+
         return templates.TemplateResponse(
             request,
             "detail.html",
@@ -133,6 +151,7 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
                 "pa": pa,
                 "scans": scans,
                 "rpct_anac": rpct_anac,
+                "steps": [dict(s) for s in steps],
             },
         )
 
@@ -376,6 +395,61 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
             one=True,
         )
 
+        # Per-attempt step ledger — aggregate per (phase, step): outcomes,
+        # how many enti reached the step, and the winning-method / reason mix.
+        step_agg = query_db(
+            """
+            SELECT phase, step,
+                   COUNT(DISTINCT cod_amm) as enti,
+                   SUM(CASE WHEN status='ok' THEN 1 ELSE 0 END) as ok_attempts,
+                   SUM(CASE WHEN status='fail' THEN 1 ELSE 0 END) as fail_attempts,
+                   SUM(CASE WHEN status='partial' THEN 1 ELSE 0 END) as partial_attempts,
+                   SUM(CASE WHEN status='skip' THEN 1 ELSE 0 END) as skip_attempts,
+                   COUNT(DISTINCT CASE WHEN status='ok' THEN cod_amm END) as enti_ok
+            FROM pa_scan_step WHERE scan_run_id = ?
+            GROUP BY phase, step
+            ORDER BY phase DESC, enti DESC
+        """,
+            (run_id,),
+        )
+        # Winning-method distribution (only successful attempts) per step
+        step_methods = query_db(
+            """
+            SELECT step, method, COUNT(*) as cnt
+            FROM pa_scan_step
+            WHERE scan_run_id = ? AND status='ok' AND method IS NOT NULL
+            GROUP BY step, method ORDER BY step, cnt DESC
+        """,
+            (run_id,),
+        )
+        # Failure-reason distribution per step
+        step_reasons = query_db(
+            """
+            SELECT step, reason, COUNT(*) as cnt
+            FROM pa_scan_step
+            WHERE scan_run_id = ? AND status='fail' AND reason IS NOT NULL
+            GROUP BY step, reason ORDER BY step, cnt DESC
+        """,
+            (run_id,),
+        )
+        # attach method/reason lists to each step row
+        methods_by_step: dict = {}
+        for m in step_methods:
+            methods_by_step.setdefault(m["step"], []).append(
+                {"method": m["method"], "cnt": m["cnt"]}
+            )
+        reasons_by_step: dict = {}
+        for r in step_reasons:
+            reasons_by_step.setdefault(r["step"], []).append(
+                {"reason": r["reason"], "cnt": r["cnt"]}
+            )
+        step_ledger = []
+        for s in step_agg:
+            d = dict(s)
+            d["methods"] = methods_by_step.get(s["step"], [])[:6]
+            d["reasons"] = reasons_by_step.get(s["step"], [])[:6]
+            step_ledger.append(d)
+
         return templates.TemplateResponse(
             request,
             "diagnostica.html",
@@ -388,6 +462,7 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
                 "methods": [dict(m) for m in methods],
                 "errors": [dict(e) for e in errors],
                 "rpct_stats": dict(rpct_stats) if rpct_stats else {},
+                "step_ledger": step_ledger,
                 "q": q,
                 "status": status,
                 "method": method,
