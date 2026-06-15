@@ -145,6 +145,28 @@ CREATE TABLE IF NOT EXISTS pa_scan_step (
 CREATE INDEX IF NOT EXISTS idx_pa_scan_step_run ON pa_scan_step(scan_run_id);
 CREATE INDEX IF NOT EXISTS idx_pa_scan_step_cod ON pa_scan_step(scan_run_id, cod_amm);
 CREATE INDEX IF NOT EXISTS idx_pa_scan_step_step ON pa_scan_step(scan_run_id, step);
+
+-- Claude gold-standard discovery verdicts (one per PA per archive date).
+-- Authoritative result used to (a) validate the Python discovery and
+-- (b) extend Python with the discovery methods Claude identifies.
+CREATE TABLE IF NOT EXISTS gold_label (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    cod_amm           TEXT NOT NULL,
+    archive_date      TEXT,
+    source            TEXT DEFAULT 'claude',
+    wb_found          INTEGER,
+    wb_url            TEXT,
+    entry_path        TEXT,          -- homepage -> ... -> WB page
+    signal            TEXT,          -- link text / clue that revealed it
+    channel_external  INTEGER,
+    methods           TEXT,          -- JSON: discovery methods Claude used/suggests
+    confidence        REAL,
+    notes             TEXT,
+    created_at        TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_gold_label_cod ON gold_label(cod_amm);
+CREATE INDEX IF NOT EXISTS idx_gold_label_date ON gold_label(archive_date);
 """
 
 
@@ -216,4 +238,41 @@ def save_pa_steps(scan_run_id, cod_amm, steps):
                     reason, detail, occurred_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
             rows,
+        )
+
+
+def save_gold_label(cod_amm, archive_date, verdict):
+    """Upsert one Claude gold-standard verdict for a PA.
+
+    verdict: dict with keys wb_found, wb_url, entry_path, signal,
+    channel_external, methods (list|str), confidence, notes.
+    """
+    import json as _json
+
+    methods = verdict.get("methods")
+    if isinstance(methods, (list, dict)):
+        methods = _json.dumps(methods, ensure_ascii=False)
+    with get_db() as db:
+        db.execute(
+            "DELETE FROM gold_label WHERE cod_amm = ? AND archive_date = ?",
+            (cod_amm, archive_date),
+        )
+        db.execute(
+            """INSERT INTO gold_label
+                   (cod_amm, archive_date, source, wb_found, wb_url, entry_path,
+                    signal, channel_external, methods, confidence, notes, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
+            (
+                cod_amm,
+                archive_date,
+                verdict.get("source", "claude"),
+                1 if verdict.get("wb_found") else 0,
+                verdict.get("wb_url"),
+                verdict.get("entry_path"),
+                verdict.get("signal"),
+                1 if verdict.get("channel_external") else 0,
+                methods,
+                verdict.get("confidence"),
+                verdict.get("notes"),
+            ),
         )

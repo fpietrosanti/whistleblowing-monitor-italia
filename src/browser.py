@@ -179,6 +179,44 @@ async def init_browser() -> None:
     _browser = await _playwright_ctx.chromium.launch(headless=True)
 
 
+async def capture_screenshot(url: str, out_path, logger, timeout_s: int = 30) -> dict:
+    """Navigate to *url* and save a viewport screenshot to *out_path*.
+
+    Returns {ok, status, final_url, error}. Images are NOT blocked here (unlike
+    the scan fetch) since the point is a faithful visual snapshot of the page.
+    Uses the shared browser singleton; init_browser() must be running.
+    """
+    result = {"ok": False, "status": 0, "final_url": url, "error": None}
+    await init_browser()
+    context = None
+    try:
+        context = await _browser.new_context(
+            user_agent=USER_AGENT,
+            viewport=VIEWPORT,
+            ignore_https_errors=True,
+        )
+        page = await context.new_page()
+        response = await page.goto(
+            url, wait_until="domcontentloaded", timeout=timeout_s * 1000
+        )
+        if response is not None:
+            result["status"] = response.status
+        result["final_url"] = page.url
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        await page.screenshot(path=str(out_path), full_page=False)
+        result["ok"] = True
+    except Exception as exc:
+        result["error"] = f"{type(exc).__name__}: {exc}"[:200]
+        logger.warning("screenshot failed for %s: %s", url, result["error"])
+    finally:
+        if context is not None:
+            try:
+                await context.close()
+            except Exception:
+                pass
+    return result
+
+
 async def close_browser() -> None:
     """Shut down the singleton browser and release Playwright resources."""
     global _browser, _playwright_ctx
