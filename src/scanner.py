@@ -24,7 +24,11 @@ from src.db import get_db, init_db
 from src.discovery import discover_wb_section
 from src.exporter import export_all
 from src.fingerprint import fingerprint_software
-from src.logging_config import save_scan_summary, setup_scan_logging
+from src.logging_config import (
+    save_scan_summary,
+    setup_scan_logging,
+    teardown_scan_logging,
+)
 from src.policy import download_wb_policy
 from src.probe import probe_wb_channel
 from src.rpct import extract_rpct_contacts
@@ -276,6 +280,7 @@ async def scan_single_pa(
             pa_logger.info(
                 "Scan complete (site unreachable) — %.1fs", results["scan_duration_s"]
             )
+            teardown_scan_logging(pa_logger)
             return results
 
         # ---- Step 2: discovery ----
@@ -398,6 +403,7 @@ async def scan_single_pa(
     save_scan_summary(scan_run_id_str, cod_amm, results)
     pa_logger.info("Scan complete — %.1fs", results["scan_duration_s"])
 
+    teardown_scan_logging(pa_logger)
     return results
 
 

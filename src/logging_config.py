@@ -42,9 +42,7 @@ def setup_scan_logging(scan_run_id: str, cod_amm: str) -> logging.Logger:
     formatter = logging.Formatter(LOG_FORMAT)
 
     # Per-PA log file
-    pa_handler = logging.FileHandler(
-        pa_log_dir / "scan.log", encoding="utf-8"
-    )
+    pa_handler = logging.FileHandler(pa_log_dir / "scan.log", encoding="utf-8")
     pa_handler.setLevel(logging.DEBUG)
     pa_handler.setFormatter(formatter)
     logger.addHandler(pa_handler)
@@ -58,6 +56,22 @@ def setup_scan_logging(scan_run_id: str, cod_amm: str) -> logging.Logger:
     logger.addHandler(global_handler)
 
     return logger
+
+
+def teardown_scan_logging(logger: logging.Logger) -> None:
+    """Close and detach a per-PA logger's file handlers.
+
+    Each PA gets its own uniquely-named logger with two FileHandlers; if they
+    are never closed the open descriptors accumulate across thousands of PAs
+    and exhaust the process FD limit ("Too many open files"). Call once the PA
+    scan is done.
+    """
+    for handler in list(logger.handlers):
+        try:
+            handler.close()
+        except Exception:
+            pass
+        logger.removeHandler(handler)
 
 
 def save_raw_html(
@@ -110,9 +124,7 @@ def save_http_debug(
     return filepath
 
 
-def save_scan_summary(
-    scan_run_id: str, cod_amm: str, summary_dict: dict
-) -> Path:
+def save_scan_summary(scan_run_id: str, cod_amm: str, summary_dict: dict) -> Path:
     """Save the final scan summary as scan_summary.json.
 
     Returns the Path to the saved file.
