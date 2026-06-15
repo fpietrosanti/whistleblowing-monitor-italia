@@ -218,7 +218,7 @@
                     {% for r in rows %}
                     <tr>
                         <td>
-                            <a href="/pa/{{ r.cod_amm }}" title="{{ r.denominazione }}">
+                            <a href="/dettaglio/{{ r.cod_amm }}" title="{{ r.denominazione }}">
                                 {{ r.denominazione[:50] }}{% if r.denominazione|length > 50 %}...{% endif %}
                             </a>
                             <br><small class="text-muted">{{ r.cod_amm }}</small>
