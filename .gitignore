@@ -12,7 +12,12 @@ data/db/
 data/exports/
 data/policies/
 data/logs/
-data/archive/
+# Archive (option B): commit the text (links.json, meta.json) for
+# repeatability, but ignore the heavy binaries (screenshots + full HTML).
+# Option C (a compressed full-run snapshot) is deferred to AFTER the first
+# official release, when we start monitoring trends.
+data/archive/**/screenshot.png
+data/archive/**/homepage.html
 
 .ssh/
 
