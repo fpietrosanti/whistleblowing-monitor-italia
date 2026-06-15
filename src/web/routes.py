@@ -580,9 +580,22 @@ def get_region_breakdown():
 
 
 def _best_run_id():
-    """Return the scan_run_id with the most scanned PAs (prefer real coverage)."""
+    """Return the scan_run_id with the most actual pa_scan rows.
+
+    Counts real rows (not the scanned_pa column, which is NULL while a run is
+    still in progress) so the dashboard auto-points at the run with the most
+    coverage — including a currently-running scan.
+    """
     row = query_db(
-        "SELECT id FROM scan_run ORDER BY scanned_pa DESC, id DESC LIMIT 1",
+        """
+        SELECT sr.id AS id
+        FROM scan_run sr
+        LEFT JOIN (
+            SELECT scan_run_id, COUNT(*) AS c FROM pa_scan GROUP BY scan_run_id
+        ) x ON x.scan_run_id = sr.id
+        ORDER BY COALESCE(x.c, 0) DESC, sr.id DESC
+        LIMIT 1
+        """,
         one=True,
     )
     return row["id"] if row else 0
