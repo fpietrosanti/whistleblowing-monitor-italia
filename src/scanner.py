@@ -589,9 +589,14 @@ async def run_full_scan(
     semaphore = asyncio.Semaphore(max_parallel)
     browser_initialized = False
 
+    # Scale the HTTP connection pool with the concurrency, otherwise the pool
+    # (not the semaphore) becomes the bottleneck at high --max-parallel.
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(15.0),
-        limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+        limits=httpx.Limits(
+            max_connections=max(max_parallel + 10, 20),
+            max_keepalive_connections=max(max_parallel // 2, 10),
+        ),
         max_redirects=5,
         headers={"User-Agent": USER_AGENT},
         follow_redirects=True,

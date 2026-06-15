@@ -33,9 +33,10 @@ from src.config import DATA_DIR, DB_PATH
 from src.db import init_db, save_gold_label
 
 ARCHIVE_ROOT = DATA_DIR / "archive"
-DEFAULT_BATCH = 15
-LINKS_PER_PA = 55
-CLAUDE_TIMEOUT = 300
+# Rich agentic mode: Claude reads each PA's full HTML + screenshot, so keep
+# batches small (more files per session = more tokens/latency).
+DEFAULT_BATCH = 5
+CLAUDE_TIMEOUT = 600
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
@@ -57,11 +58,21 @@ CANONICAL_METHODS = (
 PROMPT_HEADER = """Sei un revisore esperto di siti della Pubblica Amministrazione italiana e \
 della normativa whistleblowing (D.Lgs. 24/2023, anticorruzione, RPCT).
 
-Per ogni ente trovi sotto l'elenco dei link della sua homepage (zona, testo, URL).
-Identifica se l'ente espone una pagina/sezione di **whistleblowing / segnalazione \
-illeciti / anticorruzione**, ANCHE se il canale è su un dominio esterno (es. \
-segnalazioni.net, globaleaks, trasparenza/portaletrasparenza), o annidato in una \
-macro-sezione (Compliance, Governance, Etica, Amministrazione/Società Trasparente).
+Per ciascun ente elencato sotto hai accesso a una cartella d'archivio offline che \
+contiene:
+  - homepage.html  : l'HTML INTEGRALE della homepage (leggilo con Read)
+  - screenshot.png : screenshot della homepage (guardalo: è un'immagine)
+  - links.json     : i link estratti (zona, testo, URL)
+  - meta.json      : denominazione, url, stato
+
+USA gli strumenti Read per leggere DAVVERO homepage.html e per VEDERE screenshot.png, \
+non limitarti a links.json. Se utile, puoi anche fare una WebFetch del sito o di una \
+sotto-pagina candidata per confermare (es. la pagina Compliance/Trasparente/canale).
+
+Obiettivo: stabilire se l'ente espone una pagina/sezione di **whistleblowing / \
+segnalazione illeciti / anticorruzione**, ANCHE se il canale è su dominio esterno \
+(segnalazioni.net, globaleaks, portaletrasparenza...) o annidato in una macro-sezione \
+(Compliance, Governance, Etica, Amministrazione/Società Trasparente).
 
 Per OGNI ente restituisci un oggetto JSON con ESATTAMENTE queste chiavi:
 - "cod_amm": codice dell'ente
@@ -73,11 +84,11 @@ Per OGNI ente restituisci un oggetto JSON con ESATTAMENTE queste chiavi:
 - "method": il metodo di discovery usato; scegli tra: {methods}; se nessuno calza, \
 proponine uno nuovo con una breve etichetta snake_case
 - "confidence": 0.0-1.0
-- "notes": breve nota (o null)
+- "notes": breve nota (o null), incluse osservazioni utili a migliorare un detector \
+automatico Python
 
 Rispondi SOLO con un array JSON di questi oggetti, senza testo prima o dopo, senza \
-markdown. Se per un ente i link non bastano a decidere, usa wb_found=false con una \
-nota che spiega cosa servirebbe (es. "serve screenshot" o "serve crawl piu profondo").
+markdown.
 """
 
 
@@ -114,27 +125,23 @@ def _meta(d: Path) -> dict:
 
 def _build_prompt(batch: list[tuple[str, Path]]) -> str:
     parts = [PROMPT_HEADER.format(methods=", ".join(CANONICAL_METHODS))]
+    parts.append("\nEnti da analizzare (cartella d'archivio fra parentesi):")
     for cod, d in batch:
         meta = _meta(d)
-        try:
-            links = json.loads((d / "links.json").read_text(encoding="utf-8"))
-        except Exception:
-            links = []
         parts.append(
-            f"\n=== ENTE {cod} — {meta.get('denominazione', '')} "
-            f"({meta.get('final_url') or meta.get('url', '')}) ==="
+            f"- {cod} — {meta.get('denominazione', '')} "
+            f"({meta.get('final_url') or meta.get('url', '')}) "
+            f"-> cartella: {d.resolve()}"
         )
-        parts.append("LINK:")
-        for link in links[:LINKS_PER_PA]:
-            parts.append(
-                f"- [{link.get('zone', '')}] {link.get('text', '')!r} -> {link.get('href', '')}"
-            )
     return "\n".join(parts)
 
 
-def _call_claude(prompt: str) -> str:
+def _call_claude(prompt: str, dirs: list[Path]) -> str:
+    cmd = ["claude", "-p"]
+    for d in dirs:
+        cmd += ["--add-dir", str(d.resolve())]
     proc = subprocess.run(
-        ["claude", "-p"],
+        cmd,
         input=prompt,
         text=True,
         capture_output=True,
@@ -187,7 +194,7 @@ def main() -> None:
         batches += 1
         codes = {c for c, _ in batch}
         prompt = _build_prompt(batch)
-        out = _call_claude(prompt)
+        out = _call_claude(prompt, [d for _, d in batch])
         if not out:
             logger.warning("Empty response for batch %d, skipping", batches)
             continue
