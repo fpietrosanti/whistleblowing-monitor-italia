@@ -12,6 +12,8 @@ data/db/
 data/exports/
 data/policies/
 data/logs/
+data/archive/
+data/gold/
 
 .ssh/
 

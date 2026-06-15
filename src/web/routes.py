@@ -6,8 +6,24 @@ from fastapi import FastAPI, Query, Request
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from src.config import EXPORTS_DIR
+from src.config import DATA_DIR, EXPORTS_DIR
 from src.db import query_db
+
+ARCHIVE_ROOT = DATA_DIR / "archive"
+_ARCHIVE_ALLOWED = {"screenshot.png", "links.json", "homepage.html", "meta.json"}
+
+
+def _latest_archive(cod_amm: str):
+    """Return (date, dir Path) of the most recent archive for a PA, or (None, None)."""
+    if not ARCHIVE_ROOT.exists():
+        return None, None
+    for day in sorted(ARCHIVE_ROOT.iterdir(), reverse=True):
+        if not day.is_dir():
+            continue
+        d = day / cod_amm
+        if d.is_dir() and (d / "meta.json").exists():
+            return day.name, d
+    return None, None
 
 
 def register_routes(app: FastAPI, templates: Jinja2Templates):
@@ -144,6 +160,23 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
                 (cod_amm, step_run["rid"]),
             )
 
+        # Claude gold-standard verdict (authoritative), if present.
+        gold = query_db(
+            "SELECT * FROM gold_label WHERE cod_amm = ? ORDER BY created_at DESC LIMIT 1",
+            (cod_amm,),
+            one=True,
+        )
+
+        # Latest dated archive (screenshot/links) for visual diagnosis.
+        archive_date, archive_dir = _latest_archive(cod_amm)
+        archive = None
+        if archive_dir is not None:
+            archive = {
+                "date": archive_date,
+                "has_screenshot": (archive_dir / "screenshot.png").exists(),
+                "has_links": (archive_dir / "links.json").exists(),
+            }
+
         return templates.TemplateResponse(
             request,
             "detail.html",
@@ -152,8 +185,25 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
                 "scans": scans,
                 "rpct_anac": rpct_anac,
                 "steps": [dict(s) for s in steps],
+                "gold": dict(gold) if gold else None,
+                "archive": archive,
             },
         )
+
+    @app.get("/archive/{archive_date}/{cod_amm}/{fname}")
+    async def archive_file(archive_date: str, cod_amm: str, fname: str):
+        """Serve a file from the dated homepage archive (screenshot, links, html)."""
+        if fname not in _ARCHIVE_ALLOWED:
+            return RedirectResponse("/ricerca")
+        # Resolve safely under ARCHIVE_ROOT (block path traversal).
+        target = (ARCHIVE_ROOT / archive_date / cod_amm / fname).resolve()
+        try:
+            target.relative_to(ARCHIVE_ROOT.resolve())
+        except ValueError:
+            return RedirectResponse("/ricerca")
+        if not target.is_file():
+            return RedirectResponse("/ricerca")
+        return FileResponse(str(target))
 
     @app.get("/opendata")
     async def opendata(request: Request):

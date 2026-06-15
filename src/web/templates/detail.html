@@ -19,6 +19,82 @@
     {% if pa.cf %} &middot; CF <code>{{ pa.cf }}</code>{% endif %}
 </p>
 
+{# ===== Operator diagnosis cockpit: screenshot + Python-vs-gold ===== #}
+{% set s0 = scans[0] if scans else None %}
+<div class="row g-3 mb-4">
+    <div class="col-lg-6">
+        <div class="card card-bg h-100">
+            <div class="card-body">
+                <h5 class="card-title">Screenshot homepage
+                    {% if archive %}<small class="text-muted">(archivio {{ archive.date }})</small>{% endif %}
+                </h5>
+                {% if archive and archive.has_screenshot %}
+                <a href="/archive/{{ archive.date }}/{{ pa.cod_amm }}/screenshot.png" target="_blank" rel="noopener">
+                    <img src="/archive/{{ archive.date }}/{{ pa.cod_amm }}/screenshot.png"
+                         alt="Screenshot homepage {{ pa.denominazione }}"
+                         class="img-fluid border rounded" style="max-height: 360px;">
+                </a>
+                <div class="mt-2 small">
+                    {% if pa.sito_web %}<a href="{{ pa.sito_web }}" target="_blank" rel="noopener">Apri sito &#x2197;</a>{% endif %}
+                    {% if archive.has_links %} &middot; <a href="/archive/{{ archive.date }}/{{ pa.cod_amm }}/links.json" target="_blank" rel="noopener">links.json</a>{% endif %}
+                    &middot; <a href="/archive/{{ archive.date }}/{{ pa.cod_amm }}/homepage.html" target="_blank" rel="noopener">HTML</a>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">Nessuno screenshot in archivio.
+                    {% if pa.sito_web %}<a href="{{ pa.sito_web }}" target="_blank" rel="noopener">Apri il sito &#x2197;</a>{% endif %}
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card card-bg h-100">
+            <div class="card-body">
+                <h5 class="card-title">Esito Discovery — Python vs Gold (Claude)</h5>
+                <table class="table table-sm mb-2">
+                    <thead><tr><th></th><th class="text-center">Python</th><th class="text-center">Gold (Claude)</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <th>Sezione WB trovata</th>
+                            <td class="text-center">
+                                {% if s0 and s0.wb_section_found %}<span class="badge bg-success">Si</span>
+                                {% elif s0 %}<span class="badge bg-warning text-dark">No</span>{% else %}—{% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if gold and gold.wb_found %}<span class="badge bg-success">Si</span>
+                                {% elif gold %}<span class="badge bg-warning text-dark">No</span>{% else %}<span class="text-muted">n/d</span>{% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>URL sezione/canale</th>
+                            <td>{% if s0 and s0.wb_section_url %}<a href="{{ s0.wb_section_url }}" target="_blank" rel="noopener" class="d-inline-block text-truncate" style="max-width:160px;">{{ s0.wb_section_url }}</a>{% else %}—{% endif %}</td>
+                            <td>{% if gold and gold.wb_url %}<a href="{{ gold.wb_url }}" target="_blank" rel="noopener" class="d-inline-block text-truncate" style="max-width:160px;">{{ gold.wb_url }}</a>{% else %}—{% endif %}</td>
+                        </tr>
+                        <tr>
+                            <th>Metodo</th>
+                            <td>{% if s0 and s0.discovery_method and s0.discovery_method != 'none' %}<code class="small">{{ s0.discovery_method }}</code>{% else %}—{% endif %}</td>
+                            <td>{% if gold and gold.methods %}<code class="small">{{ gold.methods }}</code>{% else %}—{% endif %}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                {% if gold %}
+                <dl class="row mb-0 small">
+                    {% if gold.entry_path %}<dt class="col-sm-4">Percorso</dt><dd class="col-sm-8">{{ gold.entry_path }}</dd>{% endif %}
+                    {% if gold.signal %}<dt class="col-sm-4">Segnale</dt><dd class="col-sm-8">{{ gold.signal }}</dd>{% endif %}
+                    {% if gold.confidence is not none %}<dt class="col-sm-4">Confidenza</dt><dd class="col-sm-8">{{ (gold.confidence * 100)|round(0)|int }}%</dd>{% endif %}
+                    {% if gold.notes %}<dt class="col-sm-4">Note</dt><dd class="col-sm-8">{{ gold.notes }}</dd>{% endif %}
+                </dl>
+                {% if s0 and (s0.wb_section_found|int) != (gold.wb_found|int) %}
+                <div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">⚠ Discordanza Python/Gold — da rivedere</div>
+                {% endif %}
+                {% else %}
+                <p class="text-muted small mb-0">Verdetto gold (Claude) non ancora disponibile per questo ente.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row g-3 mb-4">
     <div class="col-md-6">
         <div class="card card-bg">
