@@ -277,16 +277,20 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
 
         # Health of the WB page URL they gave us (piat_public_link): is it still
         # good? = online (HTTP 200) AND content still confirmed as a WB page.
+        # HTTP statuses that mean "blocked" (WAF/IP) rather than genuinely down —
+        # recorded as a specific "anomalia" cause, not "offline".
         link_health = query_db(
             """
             SELECT
                 COUNT(*) tot,
                 SUM(CASE WHEN pub=1 AND outcome='confermata' THEN 1 ELSE 0 END) buoni,
-                SUM(CASE WHEN COALESCE(pub,0)=0 THEN 1 ELSE 0 END) offline,
-                SUM(CASE WHEN pub=1 AND COALESCE(outcome,'')<>'confermata' THEN 1 ELSE 0 END) non_wb
+                SUM(CASE WHEN pub=1 AND COALESCE(outcome,'')<>'confermata' THEN 1 ELSE 0 END) non_wb,
+                SUM(CASE WHEN COALESCE(pub,0)<>1 AND http IN (403,401,406,429) THEN 1 ELSE 0 END) anomalia,
+                SUM(CASE WHEN COALESCE(pub,0)<>1 AND (http IS NULL OR http NOT IN (403,401,406,429)) THEN 1 ELSE 0 END) offline
             FROM (
                 SELECT r.id,
                     (SELECT s.active FROM wbpa_status s WHERE s.wbpa_id=r.id AND s.link_type='public' ORDER BY s.id DESC LIMIT 1) pub,
+                    (SELECT s.http_status FROM wbpa_status s WHERE s.wbpa_id=r.id AND s.link_type='public' ORDER BY s.id DESC LIMIT 1) http,
                     (SELECT q.outcome FROM wbpa_quality q WHERE q.wbpa_id=r.id ORDER BY q.id DESC LIMIT 1) outcome
                 FROM wbpa_registry r WHERE r.piat_public_link LIKE 'http%'
             )
@@ -313,11 +317,15 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
         salute = request.query_params.get("salute", "")
         _pub = "(SELECT s.active FROM wbpa_status s WHERE s.wbpa_id=wbpa_registry.id AND s.link_type='public' ORDER BY s.id DESC LIMIT 1)"
         _out = "(SELECT q.outcome FROM wbpa_quality q WHERE q.wbpa_id=wbpa_registry.id ORDER BY q.id DESC LIMIT 1)"
+        _http = "(SELECT s.http_status FROM wbpa_status s WHERE s.wbpa_id=wbpa_registry.id AND s.link_type='public' ORDER BY s.id DESC LIMIT 1)"
         if salute == "buono":
             filters.append(f"{_pub}=1 AND {_out}='confermata'")
+        elif salute == "anomalia":
+            filters.append(f"COALESCE({_pub},0)<>1 AND {_http} IN (403,401,406,429)")
         elif salute == "offline":
             filters.append(
-                f"wbpa_registry.piat_public_link LIKE 'http%' AND COALESCE({_pub},0)=0"
+                f"wbpa_registry.piat_public_link LIKE 'http%' AND COALESCE({_pub},0)<>1 "
+                f"AND ({_http} IS NULL OR {_http} NOT IN (403,401,406,429))"
             )
         elif salute == "non_wb":
             filters.append(f"{_pub}=1 AND COALESCE({_out},'')<>'confermata'")

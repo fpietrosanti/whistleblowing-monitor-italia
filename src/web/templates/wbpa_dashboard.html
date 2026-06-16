@@ -13,9 +13,11 @@
         <p class="text-muted small mb-2">Il link che ci hanno fornito è ancora buono? = pagina <strong>online (HTTP 200)</strong> <strong>e</strong> contenuto ancora <strong>confermato</strong> come pagina whistleblowing.</p>
         <div class="row text-center">
             <div class="col"><div class="h2 mb-0 text-success">{{ link_health.buoni or 0 }}</div><small class="text-muted">ancora buoni</small></div>
-            <div class="col"><div class="h2 mb-0 text-danger">{{ link_health.offline or 0 }}</div><small class="text-muted">offline / non raggiungibili</small></div>
-            <div class="col"><div class="h2 mb-0 text-warning">{{ link_health.non_wb or 0 }}</div><small class="text-muted">online ma non più pagina WB</small></div>
+            <div class="col"><div class="h2 mb-0 text-warning">{{ link_health.non_wb or 0 }}</div><small class="text-muted">online ma non più WB</small></div>
+            <div class="col"><div class="h2 mb-0" style="color:#b35a00">{{ link_health.anomalia or 0 }}</div><small class="text-muted">anomalia (403/blocco WAF-IP)</small></div>
+            <div class="col"><div class="h2 mb-0 text-danger">{{ link_health.offline or 0 }}</div><small class="text-muted">offline (timeout/DNS/404)</small></div>
         </div>
+        <p class="text-muted small mb-0 mt-2">Le anomalie (403) sono blocchi del sito verso i nostri IP: il link è probabilmente valido e si recupera da IP residenziale.</p>
     </div>
 </div>
 {% endif %}
@@ -74,6 +76,7 @@
         <select name="salute" class="form-select">
             <option value="">Link fornito: qualsiasi</option>
             <option value="buono" {% if salute=='buono' %}selected{% endif %}>Ancora buono</option>
+            <option value="anomalia" {% if salute=='anomalia' %}selected{% endif %}>Anomalia (403/blocco)</option>
             <option value="offline" {% if salute=='offline' %}selected{% endif %}>Offline</option>
             <option value="non_wb" {% if salute=='non_wb' %}selected{% endif %}>Online ma non più WB</option>
         </select>
@@ -128,9 +131,10 @@
                 </td>
                 <td>
                     {% if not r.piat_public_link %}<small class="text-muted">—</small>
-                    {% elif r.public_active != 1 %}<span class="badge bg-danger">offline</span>
-                    {% elif r.q_outcome == 'confermata' %}<span class="badge bg-success">buono</span>
-                    {% else %}<span class="badge bg-warning text-dark">non più WB</span>{% endif %}
+                    {% elif r.public_active == 1 and r.q_outcome == 'confermata' %}<span class="badge bg-success">buono</span>
+                    {% elif r.public_active == 1 %}<span class="badge bg-warning text-dark">non più WB</span>
+                    {% elif r.public_http in [403, 401, 406, 429] %}<span class="badge" style="background:#b35a00">anomalia {{ r.public_http }}</span>
+                    {% else %}<span class="badge bg-danger">offline</span>{% endif %}
                 </td>
                 <td>
                     {% if r.q_outcome == 'confermata' %}<span class="badge bg-success">confermata</span>
