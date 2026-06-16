@@ -170,15 +170,20 @@ def _clear_old_rows(run_id: int, cod_amm: str):
         )
 
 
-async def _run(run_id: int, max_parallel: int):
+async def _run(run_id: int, max_parallel: int, proxy: str | None = None):
     due = _due(run_id)
-    logger.info("Due retries for run %d: %d", run_id, len(due))
+    logger.info(
+        "Due retries for run %d: %d%s",
+        run_id,
+        len(due),
+        f" (via proxy {proxy})" if proxy else "",
+    )
     if not due:
         return
     await init_browser()
     sem = asyncio.Semaphore(max_parallel)
 
-    async with httpx.AsyncClient(
+    client_kwargs = dict(
         timeout=httpx.Timeout(25.0),
         limits=httpx.Limits(
             max_connections=max_parallel + 5, max_keepalive_connections=10
@@ -186,7 +191,11 @@ async def _run(run_id: int, max_parallel: int):
         headers={"User-Agent": USER_AGENT},
         follow_redirects=True,
         max_redirects=5,
-    ) as client:
+    )
+    if proxy:
+        # Re-scan blocked/timeout sites from a different egress IP (VPN/proxy).
+        client_kwargs["proxy"] = proxy
+    async with httpx.AsyncClient(**client_kwargs) as client:
 
         async def _one(item: dict):
             async with sem:
@@ -218,6 +227,12 @@ def main():
         "--seed", action="store_true", help="enqueue new transient failures first"
     )
     ap.add_argument("--max-parallel", type=int, default=10)
+    ap.add_argument(
+        "--proxy",
+        default=None,
+        help="route re-scans through a proxy/VPN egress (e.g. socks5://host:port "
+        "or http://host:port) for sites that block our IPs",
+    )
     args = ap.parse_args()
 
     init_db()
@@ -227,7 +242,7 @@ def main():
         return
     if args.seed:
         _seed(run_id)
-    asyncio.run(_run(run_id, max(1, min(args.max_parallel, 30))))
+    asyncio.run(_run(run_id, max(1, min(args.max_parallel, 30)), proxy=args.proxy))
 
     stats = query_db(
         "SELECT status, COUNT(*) c FROM retry_queue WHERE scan_run_id=? GROUP BY status",

@@ -35,6 +35,44 @@
     </div>
 </div>
 
+{# Connection funnel — drawdown to the NET bucket (HTTP 200) #}
+{% if conn_funnel %}
+{% set cf = conn_funnel %}
+{% set base = cf.con_sito or 1 %}
+<div class="card card-bg mb-4">
+    <div class="card-body">
+        <h5 class="card-title">Pipeline di Connessione — bucket netto</h5>
+        <p class="text-muted small mb-3">Drawdown dagli enti totali ai siti che rispondono correttamente HTTP 200 (il <strong>bucket netto</strong> su cui confrontare tutte le altre statistiche). Percentuali sul totale enti con sito indicato.</p>
+        <div class="row text-center g-2">
+            {% set steps_f = [
+                ('Enti totali', cf.totale_enti, 'bg-secondary'),
+                ('Con sito indicato', cf.con_sito, 'bg-secondary'),
+                ('Scansionati', cf.scansionati, 'bg-info'),
+                ('Dominio risolve (DNS)', cf.risolvono, 'bg-primary'),
+                ('Connessione riuscita', cf.si_collega, 'bg-primary'),
+                ('Risponde HTTP', cf.risponde_http, 'bg-success'),
+                ('HTTP 200 — NETTO', cf.http_200, 'bg-success')
+            ] %}
+            {% for label, val, cls in steps_f %}
+            <div class="col">
+                <div class="border rounded p-2 h-100 {% if 'NETTO' in label %}border-success border-2{% endif %}">
+                    <div class="h4 mb-0">{{ "{:,}".format(val).replace(',', '.') }}</div>
+                    <small class="text-muted d-block">{{ label }}</small>
+                    {% if not (label in ['Enti totali', 'Con sito indicato']) %}
+                    <span class="badge {{ cls }} mt-1">{{ (val / base * 100)|round(1) }}%</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="progress mt-3" style="height: 22px;">
+            {% set p200 = (cf.http_200 / base * 100)|round(1) %}
+            <div class="progress-bar bg-success" style="width: {{ p200 }}%">{{ cf.http_200 }} HTTP 200 ({{ p200 }}%)</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {# Completeness charts #}
 <div class="row g-3 mb-4">
     <div class="col-lg-6">

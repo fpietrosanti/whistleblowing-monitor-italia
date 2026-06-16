@@ -487,6 +487,55 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
             "attempts": {r["outcome"]: r["c"] for r in retry_attempts},
         }
 
+        # Connection funnel: total enti -> with website -> DNS resolves ->
+        # TCP/TLS connects -> responds HTTP -> HTTP 200 (the NET bucket on which
+        # all other statistics should be compared).
+        fr = query_db(
+            """
+            WITH scanned AS (
+                SELECT s.cod_amm, s.site_reachable, s.site_http_status,
+                    (SELECT e.error_message FROM scan_error_log e
+                       WHERE e.scan_run_id = s.scan_run_id AND e.cod_amm = s.cod_amm
+                         AND e.phase = 'homepage_fetch' ORDER BY e.id DESC LIMIT 1) AS emsg,
+                    (SELECT e.error_type FROM scan_error_log e
+                       WHERE e.scan_run_id = s.scan_run_id AND e.cod_amm = s.cod_amm
+                         AND e.phase = 'homepage_fetch' ORDER BY e.id DESC LIMIT 1) AS etype
+                FROM pa_scan s WHERE s.scan_run_id = ?
+            )
+            SELECT
+                (SELECT COUNT(*) FROM pa) AS totale_enti,
+                (SELECT COUNT(*) FROM pa WHERE sito_web != '') AS con_sito,
+                COUNT(*) AS scansionati,
+                SUM(CASE WHEN site_reachable = 1 THEN 1 ELSE 0 END) AS risponde_http,
+                SUM(CASE WHEN site_reachable = 1 AND site_http_status = 200 THEN 1 ELSE 0 END) AS http_200,
+                SUM(CASE WHEN site_reachable = 0 AND (
+                        emsg LIKE '%Name or service not known%'
+                     OR emsg LIKE '%Temporary failure in name resolution%'
+                     OR emsg LIKE '%No address associated%'
+                     OR emsg LIKE '%nodename nor servname%') THEN 1 ELSE 0 END) AS dns_fail,
+                SUM(CASE WHEN site_reachable = 0 AND (
+                        etype = 'ConnectTimeout'
+                     OR emsg LIKE '%onnection refused%'
+                     OR emsg LIKE '%All connection attempts failed%') THEN 1 ELSE 0 END) AS connect_fail
+            FROM scanned
+            """,
+            (run_id,),
+            one=True,
+        )
+        fr = dict(fr) if fr else {}
+        _scans = fr.get("scansionati", 0) or 0
+        _dns_fail = fr.get("dns_fail", 0) or 0
+        _connect_fail = fr.get("connect_fail", 0) or 0
+        conn_funnel = {
+            "totale_enti": fr.get("totale_enti", 0) or 0,
+            "con_sito": fr.get("con_sito", 0) or 0,
+            "scansionati": _scans,
+            "risolvono": _scans - _dns_fail,
+            "si_collega": _scans - _dns_fail - _connect_fail,
+            "risponde_http": fr.get("risponde_http", 0) or 0,
+            "http_200": fr.get("http_200", 0) or 0,
+        }
+
         # Per-attempt step ledger — aggregate per (phase, step): outcomes,
         # how many enti reached the step, and the winning-method / reason mix.
         step_agg = query_db(
@@ -556,6 +605,7 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
                 "rpct_stats": dict(rpct_stats) if rpct_stats else {},
                 "step_ledger": step_ledger,
                 "retry": retry,
+                "conn_funnel": conn_funnel,
                 "q": q,
                 "status": status,
                 "method": method,
