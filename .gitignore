@@ -28,3 +28,5 @@ data/archive/**/homepage.html
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
+data/gold/gold_candidates.json
+data/gold/digest_failures.txt
