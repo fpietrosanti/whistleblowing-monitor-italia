@@ -88,7 +88,7 @@
                     <small class="text-muted d-block">
                         {% if cd.depth %}{{ cd.depth }} click{% else %}solo URL diretto / non in navigazione{% endif %}
                     </small>
-                    <span class="badge {% if cd.depth == 1 %}bg-success{% elif cd.depth == 2 %}bg-primary{% elif cd.depth %}bg-warning text-dark{% else %}bg-secondary{% endif %} mt-1">{{ (cd.c / cd_tot * 100)|round(1) }}%</span>
+                    <span class="badge {% if cd.depth == 1 %}bg-success{% elif cd.depth == 2 %}bg-primary{% elif cd.depth == 3 %}bg-warning text-dark{% elif cd.depth %}bg-danger{% else %}bg-secondary{% endif %} mt-1">{{ (cd.c / cd_tot * 100)|round(1) }}%</span>
                 </div>
             </div>
             {% endfor %}

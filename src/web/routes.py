@@ -204,6 +204,10 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
             },
         )
 
+    @app.get("/documentazione")
+    async def documentazione(request: Request):
+        return templates.TemplateResponse(request, "documentazione.html", {})
+
     @app.get("/archive/{archive_date}/{cod_amm}/{fname}")
     async def archive_file(archive_date: str, cod_amm: str, fname: str):
         """Serve a file from the dated homepage archive (screenshot, links, html)."""

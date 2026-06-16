@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% set active_page = "docs" %}
+{% block title %}Documentazione — Whistleblowing Monitor Italia{% endblock %}
+
+{% block content %}
+<h1 class="mb-1">Documentazione</h1>
+<p class="text-muted mb-4">Base normativa, criterio di accessibilità e metodologia di monitoraggio.</p>
+
+<div class="row">
+<div class="col-lg-9">
+
+<h2 class="h4 mt-2">1. Quadro normativo</h2>
+<p>Le informazioni sul canale di whistleblowing devono essere pubblicate sul sito dell'ente
+in modo chiaro e facilmente raggiungibile — non in modo occulto.</p>
+<ul>
+    <li><strong>D.Lgs. 24/2023, art. 5, c. 1, lett. e)</strong> — il gestore del canale deve mettere a
+        disposizione <em>informazioni chiare</em> su canale interno, procedure e presupposti per le
+        segnalazioni interne ed esterne; tali informazioni devono essere <em>facilmente visibili</em> nei
+        luoghi di lavoro, accessibili anche a chi non frequenta fisicamente l'ente, e — se l'ente ha un
+        sito internet — pubblicate <em>«anche in una sezione dedicata»</em> del sito.</li>
+    <li><strong>ANAC — Delibera n. 311/2023</strong> — le amministrazioni devono chiarire, sul sito e
+        nella pagina della piattaforma, le differenze tra <em>segnalazione ordinaria</em> e
+        <em>segnalazione whistleblowing</em> (in assenza di chiara indicazione la segnalazione potrebbe
+        essere trattata come ordinaria).</li>
+    <li><strong>ANAC — Linee guida n. 1/2025</strong> (canali interni) — va garantita «la più ampia e
+        capillare diffusione»; l'atto organizzativo/procedura deve avere adeguata visibilità, «anche
+        attraverso la pubblicazione nel sito, in una sezione dedicata, facilmente raggiungibile».</li>
+</ul>
+<p>In sintesi: <strong>non basta che il link esista tecnicamente</strong>. Una collocazione nascosta,
+non intuitiva, non indicizzata, raggiungibile solo con molti passaggi o con denominazioni ambigue non
+è coerente con gli obblighi informativi. La collocazione corretta è una pagina/sezione chiaramente
+denominata (es. <em>«Whistleblowing – Segnalazione di illeciti»</em>) con accesso alla piattaforma,
+istruzioni, soggetto gestore, canale esterno ANAC, presupposti e tutele.</p>
+
+<h2 class="h4 mt-4">2. Numero di click — criterio di accessibilità</h2>
+<p>La normativa <strong>non fissa un numero massimo di click</strong>: il criterio è qualitativo
+(sezione dedicata, chiara, facilmente visibile/accessibile e raggiungibile). Operativamente però la
+profondità di navigazione è un indicatore diretto di accessibilità, e questa è la soglia pratica che
+adottiamo:</p>
+
+<div class="table-responsive">
+<table class="table">
+    <thead><tr><th>Click dalla homepage</th><th>Valutazione</th></tr></thead>
+    <tbody>
+        <tr class="table-success"><td><strong>1 click</strong></td><td>Ottimale (es. homepage → «Whistleblowing / Segnalazione illeciti»).</td></tr>
+        <tr><td><strong>2 click</strong></td><td>Normalmente difendibile se il percorso è intuitivo (es. homepage → «Amministrazione Trasparente» → «Whistleblowing»).</td></tr>
+        <tr class="table-warning"><td><strong>3 click</strong></td><td>Potenzialmente conforme solo se il percorso è standard e chiarissimo (es. homepage → «Amministrazione Trasparente» → «Altri contenuti» → «Prevenzione della corruzione / Whistleblowing»).</td></tr>
+        <tr class="table-danger"><td><strong>4+ click</strong> o link occulto</td><td>Fortemente contestabile: link sepolto in PDF, footer generico, raggiungibile solo da ricerca interna, pagina senza titolo chiaro, diciture ambigue («istanze varie», «segnalazioni» senza riferimento al whistleblowing).</td></tr>
+    </tbody>
+</table>
+</div>
+<p class="text-muted"><em>Formula prudente:</em> la homepage non è obbligatoria in sé, ma l'accessibilità
+effettiva sì. Indicativamente non più di <strong>2–3 passaggi</strong> dalla homepage; oltre, o con
+denominazioni non espresse, l'accessibilità del canale può essere contestata.</p>
+
+<h2 class="h4 mt-4">3. Metodologia di monitoraggio</h2>
+<p>Per ogni ente nel registro IndicePA misuriamo, in modo tracciabile e ripetibile:</p>
+<ol>
+    <li><strong>Pipeline di connessione</strong> — dal totale enti al «bucket netto»: con sito indicato →
+        dominio che risolve (DNS) → connessione riuscita → risposta <code>HTTP 200</code>. Il bucket netto
+        è il denominatore di tutte le altre statistiche.</li>
+    <li><strong>Discovery della sezione WB</strong> — strategie concatenate (link diretto, voce di menu,
+        macro-sezioni Compliance/Governance, Amministrazione/Società Trasparente, sitemap, crawl profondo,
+        canale su piattaforma esterna). Ogni tentativo e il suo esito sono registrati per ente.</li>
+    <li><strong>Click dalla homepage</strong> — stima dei click necessari a raggiungere la pagina WB
+        (vedi §2), come indicatore di accessibilità.</li>
+    <li><strong>Analisi del contenuto</strong> — validazione che la sezione trovata sia effettivamente
+        quella whistleblowing (non un semplice match testuale) e, per i siti dove non viene trovata,
+        rielaborazione con discovery più approfondita.</li>
+    <li><strong>Resilienza</strong> — i timeout transienti vengono ritentati con backoff esponenziale
+        (anche da IP/VPN diversi); i motivi di irraggiungibilità sono registrati analiticamente.</li>
+</ol>
+
+<div class="alert alert-info mt-4">
+    <strong>Avvertenza.</strong> Le valutazioni di accessibilità qui riportate sono <em>indicative</em>
+    e a fini di monitoraggio civico; non costituiscono un parere legale né un accertamento di
+    (non) conformità, che competono alle autorità preposte (ANAC).
+</div>
+
+</div>
+<div class="col-lg-3">
+    <div class="card card-bg">
+        <div class="card-body">
+            <h6 class="card-title">Riferimenti</h6>
+            <ul class="small mb-0 ps-3">
+                <li>D.Lgs. 24/2023, art. 5</li>
+                <li>ANAC Delibera 311/2023</li>
+                <li>ANAC Linee guida 1/2025</li>
+                <li><a href="/diagnostica">Dashboard diagnostica</a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+</div>
+{% endblock %}

@@ -78,7 +78,7 @@
                         <tr>
                             <th>Click dalla homepage</th>
                             <td>
-                                {% if s0 and s0.wb_click_depth %}<span class="badge {% if s0.wb_click_depth == 1 %}bg-success{% elif s0.wb_click_depth == 2 %}bg-primary{% else %}bg-warning text-dark{% endif %}">{{ s0.wb_click_depth }} click</span>
+                                {% if s0 and s0.wb_click_depth %}<span class="badge {% if s0.wb_click_depth == 1 %}bg-success{% elif s0.wb_click_depth == 2 %}bg-primary{% elif s0.wb_click_depth == 3 %}bg-warning text-dark{% else %}bg-danger{% endif %}">{{ s0.wb_click_depth }} click</span>
                                 {% elif s0 and s0.wb_section_found %}<small class="text-muted">solo URL diretto</small>{% else %}—{% endif %}
                             </td>
                             <td>—</td>
