@@ -235,10 +235,16 @@ async def scan_single_pa(
     steps: list[dict] = []
 
     try:
-        # ---- Step 1: fetch homepage ----
+        # ---- Step 1: fetch homepage (with one inline retry on timeout) ----
         homepage_html = None
         try:
-            resp = await http_client.get(site_url)
+            try:
+                resp = await http_client.get(site_url)
+            except httpx.TimeoutException:
+                # Flaky/slow site — one immediate retry with a longer timeout
+                # before giving up (the retry queue handles persistent cases).
+                pa_logger.info("Homepage timeout, inline retry (25s) for %s", cod_amm)
+                resp = await http_client.get(site_url, timeout=25.0)
             results["site_http_status"] = resp.status_code
             results["site_reachable"] = 1
             homepage_html = resp.text

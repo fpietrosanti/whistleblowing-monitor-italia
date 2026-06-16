@@ -167,6 +167,42 @@ CREATE TABLE IF NOT EXISTS gold_label (
 
 CREATE INDEX IF NOT EXISTS idx_gold_label_cod ON gold_label(cod_amm);
 CREATE INDEX IF NOT EXISTS idx_gold_label_date ON gold_label(archive_date);
+
+-- Retry queue for transient connection failures (ConnectTimeout/ReadTimeout/
+-- ConnectError...). Rescheduled with exponential backoff and re-attempted by
+-- tools/retry_due.py (hourly cron). status: pending | recovered | exhausted.
+CREATE TABLE IF NOT EXISTS retry_queue (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    scan_run_id     INTEGER NOT NULL,
+    cod_amm         TEXT NOT NULL,
+    error_type      TEXT,
+    attempts        INTEGER DEFAULT 0,
+    next_retry_at   TEXT,
+    last_attempt_at TEXT,
+    status          TEXT DEFAULT 'pending',
+    created_at      TEXT NOT NULL,
+    UNIQUE(scan_run_id, cod_amm)
+);
+
+CREATE INDEX IF NOT EXISTS idx_retry_queue_due ON retry_queue(status, next_retry_at);
+
+-- Append-only per-attempt retry history: one row per retry attempt with its
+-- outcome (recovered/failed), so the number of retries and whether each
+-- succeeded or failed is fully recorded and auditable.
+CREATE TABLE IF NOT EXISTS retry_log (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    scan_run_id     INTEGER NOT NULL,
+    cod_amm         TEXT NOT NULL,
+    attempt         INTEGER NOT NULL,
+    error_type      TEXT,
+    outcome         TEXT NOT NULL,   -- recovered | failed
+    http_status     INTEGER,
+    new_error       TEXT,
+    attempted_at    TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_retry_log_cod ON retry_log(cod_amm);
+CREATE INDEX IF NOT EXISTS idx_retry_log_run ON retry_log(scan_run_id);
 """
 
 
