@@ -15,7 +15,8 @@
             <div class="col"><div class="h2 mb-0 text-success">{{ link_health.buoni or 0 }}</div><small class="text-muted">ancora buoni</small></div>
             <div class="col"><div class="h2 mb-0 text-warning">{{ link_health.non_wb or 0 }}</div><small class="text-muted">online ma non più WB</small></div>
             <div class="col"><div class="h2 mb-0" style="color:#b35a00">{{ link_health.anomalia or 0 }}</div><small class="text-muted">anomalia (403/blocco WAF-IP)</small></div>
-            <div class="col"><div class="h2 mb-0 text-danger">{{ link_health.offline or 0 }}</div><small class="text-muted">offline (timeout/DNS/404)</small></div>
+            <div class="col"><div class="h2 mb-0 text-secondary">{{ link_health.non_trovata or 0 }}</div><small class="text-muted">404 Pagina Non Trovata</small></div>
+            <div class="col"><div class="h2 mb-0 text-danger">{{ link_health.offline or 0 }}</div><small class="text-muted">offline (timeout/DNS/5xx)</small></div>
         </div>
         <p class="text-muted small mb-0 mt-2">Le anomalie (403) sono blocchi del sito verso i nostri IP: il link è probabilmente valido e si recupera da IP residenziale.</p>
     </div>
@@ -77,6 +78,7 @@
             <option value="">Link fornito: qualsiasi</option>
             <option value="buono" {% if salute=='buono' %}selected{% endif %}>Ancora buono</option>
             <option value="anomalia" {% if salute=='anomalia' %}selected{% endif %}>Anomalia (403/blocco)</option>
+            <option value="non_trovata" {% if salute=='non_trovata' %}selected{% endif %}>404 Pagina Non Trovata</option>
             <option value="offline" {% if salute=='offline' %}selected{% endif %}>Offline</option>
             <option value="non_wb" {% if salute=='non_wb' %}selected{% endif %}>Online ma non più WB</option>
         </select>
@@ -134,6 +136,7 @@
                     {% elif r.public_active == 1 and r.q_outcome == 'confermata' %}<span class="badge bg-success">buono</span>
                     {% elif r.public_active == 1 %}<span class="badge bg-warning text-dark">non più WB</span>
                     {% elif r.public_http in [403, 401, 406, 429] %}<span class="badge" style="background:#b35a00">anomalia {{ r.public_http }}</span>
+                    {% elif r.public_http == 404 %}<span class="badge bg-secondary">404 non trovata</span>
                     {% else %}<span class="badge bg-danger">offline</span>{% endif %}
                 </td>
                 <td>
