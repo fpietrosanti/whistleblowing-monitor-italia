@@ -116,14 +116,14 @@ def _norm_url(url: str) -> str:
     return url
 
 
-def _log_attempt(item: dict, reachable: bool, http_status, new_error):
-    """Append-only record of this retry attempt and its outcome."""
+def _log_attempt(item: dict, reachable: bool, http_status, new_error, egress):
+    """Append-only record of this retry attempt and its outcome (with egress)."""
     with get_db() as db:
         db.execute(
             """INSERT INTO retry_log
                    (scan_run_id, cod_amm, attempt, error_type, outcome,
-                    http_status, new_error, attempted_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    http_status, new_error, egress, attempted_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 item["scan_run_id"],
                 item["cod_amm"],
@@ -132,6 +132,7 @@ def _log_attempt(item: dict, reachable: bool, http_status, new_error):
                 "recovered" if reachable else "failed",
                 http_status,
                 new_error,
+                egress,
                 _now().isoformat(),
             ),
         )
@@ -170,7 +171,9 @@ def _clear_old_rows(run_id: int, cod_amm: str):
         )
 
 
-async def _run(run_id: int, max_parallel: int, proxy: str | None = None):
+async def _run(
+    run_id: int, max_parallel: int, proxy: str | None = None, egress: str = "datacenter"
+):
     due = _due(run_id)
     logger.info(
         "Due retries for run %d: %d%s",
@@ -202,11 +205,15 @@ async def _run(run_id: int, max_parallel: int, proxy: str | None = None):
                 url = _norm_url(item["sito_web"])
                 _clear_old_rows(run_id, item["cod_amm"])
                 res = await scan_single_pa(
-                    run_id, item["cod_amm"], url, client, mode="browser"
+                    run_id, item["cod_amm"], url, client, mode="browser", egress=egress
                 )
                 reachable = bool(res.get("site_reachable"))
                 _log_attempt(
-                    item, reachable, res.get("site_http_status"), res.get("site_error")
+                    item,
+                    reachable,
+                    res.get("site_http_status"),
+                    res.get("site_error"),
+                    egress,
                 )
                 _reschedule(item, reachable)
                 logger.info(
@@ -233,6 +240,12 @@ def main():
         help="route re-scans through a proxy/VPN egress (e.g. socks5://host:port "
         "or http://host:port) for sites that block our IPs",
     )
+    ap.add_argument(
+        "--egress",
+        choices=["datacenter", "residential", "vpn"],
+        default="datacenter",
+        help="record which IP type these retries go out from",
+    )
     args = ap.parse_args()
 
     init_db()
@@ -242,7 +255,14 @@ def main():
         return
     if args.seed:
         _seed(run_id)
-    asyncio.run(_run(run_id, max(1, min(args.max_parallel, 30)), proxy=args.proxy))
+    asyncio.run(
+        _run(
+            run_id,
+            max(1, min(args.max_parallel, 30)),
+            proxy=args.proxy,
+            egress=args.egress,
+        )
+    )
 
     stats = query_db(
         "SELECT status, COUNT(*) c FROM retry_queue WHERE scan_run_id=? GROUP BY status",

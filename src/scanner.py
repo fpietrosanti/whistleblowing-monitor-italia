@@ -43,14 +43,29 @@ logger = logging.getLogger("wbmonitor.scanner")
 # ---------------------------------------------------------------------------
 
 
-def _create_scan_run(mode: str = "browser") -> int:
+def _create_scan_run(
+    mode: str = "browser", egress: str = "datacenter", egress_ip: str | None = None
+) -> int:
     """Insert a new scan_run row and return its id."""
     with get_db() as db:
         cur = db.execute(
-            "INSERT INTO scan_run (started_at, status, mode) VALUES (?, 'running', ?)",
-            (datetime.now(timezone.utc).isoformat(), mode),
+            "INSERT INTO scan_run (started_at, status, mode, egress, egress_ip) "
+            "VALUES (?, 'running', ?, ?, ?)",
+            (datetime.now(timezone.utc).isoformat(), mode, egress, egress_ip),
         )
         return cur.lastrowid
+
+
+async def _public_ip() -> str | None:
+    """Best-effort public egress IP (to record which IP a run went out from)."""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as c:
+            r = await c.get("https://api.ipify.org")
+            if r.status_code == 200:
+                return r.text.strip()[:64]
+    except Exception:
+        pass
+    return None
 
 
 def _finish_scan_run(scan_run_id: int, total: int, scanned: int, errors: int):
@@ -120,7 +135,7 @@ def _save_pa_scan(scan_run_id: int, cod_amm: str, results: dict):
                 wb_email, wb_phone,
                 wb_policy_visible, wb_policy_url,
                 wb_policy_pdf_path, wb_policy_pdf_hash,
-                discovery_method, wb_click_depth,
+                discovery_method, wb_click_depth, egress,
                 scan_duration_s, notes
             ) VALUES (
                 ?, ?, ?,
@@ -134,7 +149,7 @@ def _save_pa_scan(scan_run_id: int, cod_amm: str, results: dict):
                 ?, ?,
                 ?, ?,
                 ?, ?,
-                ?, ?,
+                ?, ?, ?,
                 ?, ?
             )""",
             (
@@ -169,6 +184,7 @@ def _save_pa_scan(scan_run_id: int, cod_amm: str, results: dict):
                 results.get("wb_policy_pdf_hash"),
                 results.get("discovery_method"),
                 results.get("wb_click_depth"),
+                results.get("egress"),
                 results.get("scan_duration_s"),
                 results.get("notes"),
             ),
@@ -267,10 +283,12 @@ async def scan_single_pa(
     site_url: str,
     http_client: httpx.AsyncClient,
     mode: str = "browser",
+    egress: str = "datacenter",
 ) -> dict:
     """Scan a single PA through the full pipeline. Never raises.
 
     mode "python" skips the Playwright browser fallback entirely.
+    egress records which IP type the connection went out from.
     """
 
     scan_run_id_str = str(scan_run_id)
@@ -281,6 +299,7 @@ async def scan_single_pa(
     results: dict = {
         "site_reachable": 0,
         "render_mode": "httpx",
+        "egress": egress,
     }
     # Per-attempt step ledger for this PA (saved at the end).
     steps: list[dict] = []
@@ -628,6 +647,7 @@ async def run_full_scan(
     max_parallel: int = MAX_PARALLEL,
     pa_filter: dict | None = None,
     mode: str = "browser",
+    egress: str = "datacenter",
 ) -> dict:
     """Run the complete scanning pipeline.
 
@@ -636,12 +656,17 @@ async def run_full_scan(
         "browser" — httpx + Playwright render fallback + heuristics (default)
         (the "claude" gold-standard mode runs as a separate offline harness
          over the dated archive, not through this async scanner)
+    egress: which IP type the run goes out from (datacenter | residential | vpn)
+        — recorded on the run and every row so a later residential re-run can
+        be compared to unmask IP-based WAF/anti-scraping blocks.
 
     Returns a summary dict with counts and timing.
     """
     init_db()
 
-    scan_run_id = _create_scan_run(mode=mode)
+    egress_ip = await _public_ip()
+    scan_run_id = _create_scan_run(mode=mode, egress=egress, egress_ip=egress_ip)
+    logger.info("Run egress=%s ip=%s", egress, egress_ip)
     logger.info("=== Scan run %d started (mode=%s) ===", scan_run_id, mode)
 
     pa_list = _get_pa_list(pa_filter)
@@ -672,7 +697,12 @@ async def run_full_scan(
         async def _scan_with_semaphore(cod_amm: str, site_url: str) -> dict:
             async with semaphore:
                 return await scan_single_pa(
-                    scan_run_id, cod_amm, site_url, http_client, mode=mode
+                    scan_run_id,
+                    cod_amm,
+                    site_url,
+                    http_client,
+                    mode=mode,
+                    egress=egress,
                 )
 
         # Pre-init browser so it's ready when needed (skip in python-only mode)
@@ -800,6 +830,13 @@ def main():
         "'browser' (httpx+Playwright fallback, default). The 'claude' "
         "gold-standard mode runs via the separate runners/claude harness.",
     )
+    parser.add_argument(
+        "--egress",
+        choices=["datacenter", "residential", "vpn"],
+        default="datacenter",
+        help="IP type this run goes out from. Use 'residential' when re-running "
+        "from a home line to unmask datacenter-IP WAF/anti-scraping blocks.",
+    )
     args = parser.parse_args()
 
     # Build filter
@@ -821,7 +858,10 @@ def main():
 
     summary = asyncio.run(
         run_full_scan(
-            max_parallel=args.max_parallel, pa_filter=pa_filter, mode=args.mode
+            max_parallel=args.max_parallel,
+            pa_filter=pa_filter,
+            mode=args.mode,
+            egress=args.egress,
         )
     )
     print(f"\nScan complete: {summary}")

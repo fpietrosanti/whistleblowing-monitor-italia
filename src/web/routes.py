@@ -491,6 +491,17 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
             "attempts": {r["outcome"]: r["c"] for r in retry_attempts},
         }
 
+        # Egress comparison: do connection failures recover when retried from a
+        # different IP type (datacenter vs residential vs vpn)? Unmasks IP-based
+        # WAF/anti-scraping blocks.
+        egress_recovery = [
+            dict(r)
+            for r in query_db(
+                "SELECT COALESCE(egress,'?') egress, outcome, COUNT(*) c "
+                "FROM retry_log GROUP BY egress, outcome ORDER BY egress",
+            )
+        ]
+
         # Connection funnel: total enti -> with website -> DNS resolves ->
         # TCP/TLS connects -> responds HTTP -> HTTP 200 (the NET bucket on which
         # all other statistics should be compared).
@@ -618,6 +629,7 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
                 "rpct_stats": dict(rpct_stats) if rpct_stats else {},
                 "step_ledger": step_ledger,
                 "retry": retry,
+                "egress_recovery": egress_recovery,
                 "conn_funnel": conn_funnel,
                 "click_depth": click_depth,
                 "q": q,

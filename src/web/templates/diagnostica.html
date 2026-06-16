@@ -27,6 +27,7 @@
                     <div class="col"><small class="text-muted d-block">Scansionate</small><strong>{{ current_run.scanned_pa or 0 }}</strong></div>
                     <div class="col"><small class="text-muted d-block">Errori</small><strong class="{% if current_run.errors %}text-danger{% endif %}">{{ current_run.errors or 0 }}</strong></div>
                     <div class="col"><small class="text-muted d-block">Inizio</small><small>{{ (current_run.started_at or '')[:16] }}</small></div>
+                    <div class="col"><small class="text-muted d-block">Egress</small><span class="badge {% if current_run.egress == 'residential' %}bg-success{% elif current_run.egress == 'vpn' %}bg-info text-dark{% else %}bg-secondary{% endif %}">{{ current_run.egress or 'datacenter' }}</span>{% if current_run.egress_ip %}<br><small class="text-muted">{{ current_run.egress_ip }}</small>{% endif %}</div>
                     <div class="col"><small class="text-muted d-block">Fine</small><small>{{ (current_run.finished_at or '—')[:16] }}</small></div>
                 </div>
             </div>
@@ -197,6 +198,23 @@
         </div>
         {% else %}
         <p class="text-muted mb-0">Nessun retry in coda per questa scansione (popolato da <code>tools/retry_due.py --seed</code>).</p>
+        {% endif %}
+        {% if egress_recovery %}
+        <hr>
+        <h6 class="mb-2">Recupero per egress (datacenter vs residenziale vs VPN)</h6>
+        <p class="text-muted small mb-2">Quanti fallimenti di connessione si recuperano ritentando da un IP diverso — smaschera i blocchi WAF/anti-scraping basati su IP.</p>
+        <table class="table table-sm mb-0" style="font-size:.85rem">
+            <thead class="table-light"><tr><th>Egress</th><th>Esito</th><th class="text-end">Tentativi</th></tr></thead>
+            <tbody>
+                {% for e in egress_recovery %}
+                <tr>
+                    <td><span class="badge {% if e.egress == 'residential' %}bg-success{% elif e.egress == 'vpn' %}bg-info text-dark{% else %}bg-secondary{% endif %}">{{ e.egress }}</span></td>
+                    <td>{% if e.outcome == 'recovered' %}<span class="text-success">recuperato</span>{% else %}<span class="text-danger">fallito</span>{% endif %}</td>
+                    <td class="text-end">{{ e.c }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
         {% endif %}
     </div>
 </div>

@@ -18,7 +18,9 @@ CREATE TABLE IF NOT EXISTS scan_run (
     scanned_pa      INTEGER,
     errors          INTEGER DEFAULT 0,
     status          TEXT DEFAULT 'running',
-    mode            TEXT DEFAULT 'browser'
+    mode            TEXT DEFAULT 'browser',
+    egress          TEXT DEFAULT 'datacenter',  -- datacenter | residential | vpn
+    egress_ip       TEXT
 );
 
 CREATE TABLE IF NOT EXISTS pa (
@@ -75,6 +77,7 @@ CREATE TABLE IF NOT EXISTS pa_scan (
     wb_policy_pdf_hash      TEXT,
     discovery_method        TEXT,
     wb_click_depth          INTEGER,
+    egress                  TEXT,
     scan_duration_s         REAL,
     notes                   TEXT
 );
@@ -199,6 +202,7 @@ CREATE TABLE IF NOT EXISTS retry_log (
     outcome         TEXT NOT NULL,   -- recovered | failed
     http_status     INTEGER,
     new_error       TEXT,
+    egress          TEXT,            -- datacenter | residential | vpn
     attempted_at    TEXT NOT NULL
 );
 
