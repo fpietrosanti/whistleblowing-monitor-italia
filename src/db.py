@@ -277,6 +277,23 @@ CREATE TABLE IF NOT EXISTS wbpa_quality (
 
 CREATE INDEX IF NOT EXISTS idx_wbpa_quality_id ON wbpa_quality(wbpa_id);
 CREATE INDEX IF NOT EXISTS idx_wbpa_quality_outcome ON wbpa_quality(outcome);
+
+-- Claude gold-standard content validation (rubric v1.x) — authoritative
+-- judgement used to calibrate the Python analyzer (the virtuous loop).
+CREATE TABLE IF NOT EXISTS wb_validation (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    wbpa_id     INTEGER,
+    cod_amm     TEXT,
+    url         TEXT,
+    source      TEXT DEFAULT 'claude',
+    outcome     TEXT,          -- confermata | informativa | falso_positivo
+    flags       TEXT,          -- JSON of the rubric element booleans
+    notes       TEXT,
+    created_at  TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_wb_validation_wbpa ON wb_validation(wbpa_id);
+CREATE INDEX IF NOT EXISTS idx_wb_validation_url ON wb_validation(url);
 """
 
 
