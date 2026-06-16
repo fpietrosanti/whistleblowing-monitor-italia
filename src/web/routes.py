@@ -287,7 +287,8 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
                 SUM(CASE WHEN pub=1 AND COALESCE(outcome,'')<>'confermata' THEN 1 ELSE 0 END) non_wb,
                 SUM(CASE WHEN COALESCE(pub,0)<>1 AND http IN (403,401,406,429) THEN 1 ELSE 0 END) anomalia,
                 SUM(CASE WHEN COALESCE(pub,0)<>1 AND http=404 THEN 1 ELSE 0 END) non_trovata,
-                SUM(CASE WHEN COALESCE(pub,0)<>1 AND (http IS NULL OR http NOT IN (403,401,406,429,404)) THEN 1 ELSE 0 END) offline
+                SUM(CASE WHEN COALESCE(pub,0)<>1 AND http>=500 THEN 1 ELSE 0 END) errore_server,
+                SUM(CASE WHEN COALESCE(pub,0)<>1 AND (http IS NULL OR (http NOT IN (403,401,406,429,404) AND http<500)) THEN 1 ELSE 0 END) offline
             FROM (
                 SELECT r.id,
                     (SELECT s.active FROM wbpa_status s WHERE s.wbpa_id=r.id AND s.link_type='public' ORDER BY s.id DESC LIMIT 1) pub,
@@ -325,10 +326,12 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
             filters.append(f"COALESCE({_pub},0)<>1 AND {_http} IN (403,401,406,429)")
         elif salute == "non_trovata":
             filters.append(f"COALESCE({_pub},0)<>1 AND {_http}=404")
+        elif salute == "errore_server":
+            filters.append(f"COALESCE({_pub},0)<>1 AND {_http}>=500")
         elif salute == "offline":
             filters.append(
                 f"wbpa_registry.piat_public_link LIKE 'http%' AND COALESCE({_pub},0)<>1 "
-                f"AND ({_http} IS NULL OR {_http} NOT IN (403,401,406,429,404))"
+                f"AND ({_http} IS NULL OR ({_http} NOT IN (403,401,406,429,404) AND {_http}<500))"
             )
         elif salute == "non_wb":
             filters.append(f"{_pub}=1 AND COALESCE({_out},'')<>'confermata'")
