@@ -11,6 +11,9 @@ DB_PATH = DB_DIR / "wbmonitor.db"
 INDICEPA_CKAN_BASE = "https://www.indicepa.gov.it/ipa-dati/api/3/action"
 INDICEPA_RESOURCE_ID = "d09adf99-dc10-4349-8c53-27b1e5aa97b6"
 
+# WhistleblowingPA registry (whistleblowing.it / GlobaLeaks) — Google Sheet
+WBPA_SHEET_ID = "1sremKVmaCn3Lvoc6m11sEie8rf6_tQC3ofO95jEZcjE"
+
 MAX_PARALLEL = 5
 
 # Real Chrome UA — paired with curl_cffi Chrome impersonation (src/fetcher.py)

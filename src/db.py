@@ -208,6 +208,49 @@ CREATE TABLE IF NOT EXISTS retry_log (
 
 CREATE INDEX IF NOT EXISTS idx_retry_log_cod ON retry_log(cod_amm);
 CREATE INDEX IF NOT EXISTS idx_retry_log_run ON retry_log(scan_run_id);
+
+-- WhistleblowingPA registry (whistleblowing.it / GlobaLeaks-hosted channels).
+-- Ground truth: piat_link = the platform channel, piat_public_link = the WB
+-- page on the entity's own site (the discovery target). Reconciled to pa by CF.
+CREATE TABLE IF NOT EXISTS wbpa_registry (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    denominazione     TEXT,
+    versione          TEXT,
+    categoria         TEXT,
+    regione           TEXT,
+    provincia         TEXT,
+    piat_stato        TEXT,
+    piat_link         TEXT,
+    piat_regist_data  TEXT,
+    piat_disab_data   TEXT,
+    piat_canc_data    TEXT,
+    piat_public       TEXT,
+    piat_public_link  TEXT,
+    cf                TEXT,
+    cod_amm           TEXT,
+    note              TEXT,
+    updated_at        TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_wbpa_cf ON wbpa_registry(cf);
+CREATE INDEX IF NOT EXISTS idx_wbpa_cod ON wbpa_registry(cod_amm);
+CREATE INDEX IF NOT EXISTS idx_wbpa_stato ON wbpa_registry(piat_stato);
+
+-- Live status of each WhistleblowingPA link (active vs error + content).
+CREATE TABLE IF NOT EXISTS wbpa_status (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    wbpa_id       INTEGER NOT NULL REFERENCES wbpa_registry(id),
+    link_type     TEXT,        -- piat | public
+    url           TEXT,
+    http_status   INTEGER,
+    active        INTEGER,     -- 1 if reachable HTTP 200
+    is_wb_content INTEGER,     -- content validation (later)
+    error         TEXT,
+    egress        TEXT,
+    checked_at    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_wbpa_status_id ON wbpa_status(wbpa_id);
 """
 
 
