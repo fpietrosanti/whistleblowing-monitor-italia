@@ -105,6 +105,40 @@
     </div>
 </div>
 
+{# Retry queue — transient connection failures, backoff status, outcomes #}
+<div class="card card-bg mb-4">
+    <div class="card-body">
+        <h5 class="card-title">Retry connessioni (timeout transienti)</h5>
+        {% if retry and (retry.by_type or retry.by_status) %}
+        <div class="row text-center mb-3">
+            <div class="col"><small class="text-muted d-block">In coda (pending)</small><strong class="text-primary">{{ retry.by_status.get('pending', {}).get('c', 0) }}</strong></div>
+            <div class="col"><small class="text-muted d-block">Recuperati</small><strong class="text-success">{{ retry.by_status.get('recovered', {}).get('c', 0) }}</strong></div>
+            <div class="col"><small class="text-muted d-block">Esauriti (falliti)</small><strong class="text-danger">{{ retry.by_status.get('exhausted', {}).get('c', 0) }}</strong></div>
+            <div class="col"><small class="text-muted d-block">Tentativi OK</small><strong class="text-success">{{ retry.attempts.get('recovered', 0) }}</strong></div>
+            <div class="col"><small class="text-muted d-block">Tentativi falliti</small><strong>{{ retry.attempts.get('failed', 0) }}</strong></div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm mb-0" style="font-size:.85rem">
+                <thead class="table-light"><tr><th>Tipo errore</th><th class="text-end">Totale</th><th class="text-end">Recuperati</th><th class="text-end">Esauriti</th><th class="text-end">Pending</th></tr></thead>
+                <tbody>
+                    {% for t in retry.by_type %}
+                    <tr>
+                        <td><code>{{ t.error_type }}</code></td>
+                        <td class="text-end">{{ t.c }}</td>
+                        <td class="text-end text-success">{{ t.recovered }}</td>
+                        <td class="text-end text-danger">{{ t.exhausted }}</td>
+                        <td class="text-end">{{ t.pending }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">Nessun retry in coda per questa scansione (popolato da <code>tools/retry_due.py --seed</code>).</p>
+        {% endif %}
+    </div>
+</div>
+
 {# Per-attempt step ledger — every step we manage or fail, per phase, with method #}
 <div class="card card-bg mb-4">
     <div class="card-body">

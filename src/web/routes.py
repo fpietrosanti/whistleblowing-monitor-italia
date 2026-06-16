@@ -167,6 +167,18 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
             one=True,
         )
 
+        # Retry queue status + per-attempt history for this PA.
+        retry_q = query_db(
+            "SELECT * FROM retry_queue WHERE cod_amm = ? ORDER BY id DESC LIMIT 1",
+            (cod_amm,),
+            one=True,
+        )
+        retry_log = query_db(
+            "SELECT attempt, error_type, outcome, http_status, new_error, attempted_at "
+            "FROM retry_log WHERE cod_amm = ? ORDER BY attempted_at",
+            (cod_amm,),
+        )
+
         # Latest dated archive (screenshot/links) for visual diagnosis.
         archive_date, archive_dir = _latest_archive(cod_amm)
         archive = None
@@ -187,6 +199,8 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
                 "steps": [dict(s) for s in steps],
                 "gold": dict(gold) if gold else None,
                 "archive": archive,
+                "retry_q": dict(retry_q) if retry_q else None,
+                "retry_log": [dict(r) for r in retry_log],
             },
         )
 
@@ -445,6 +459,34 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
             one=True,
         )
 
+        # Retry queue: how many transient failures, their status, and the
+        # per-attempt outcomes (recovered vs failed).
+        retry_status = query_db(
+            "SELECT status, COUNT(*) c, SUM(attempts) tot_attempts "
+            "FROM retry_queue WHERE scan_run_id = ? GROUP BY status",
+            (run_id,),
+        )
+        retry_by_type = query_db(
+            "SELECT error_type, COUNT(*) c, "
+            "SUM(CASE WHEN status='recovered' THEN 1 ELSE 0 END) recovered, "
+            "SUM(CASE WHEN status='exhausted' THEN 1 ELSE 0 END) exhausted, "
+            "SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) pending "
+            "FROM retry_queue WHERE scan_run_id = ? GROUP BY error_type ORDER BY c DESC",
+            (run_id,),
+        )
+        retry_attempts = query_db(
+            "SELECT outcome, COUNT(*) c FROM retry_log WHERE scan_run_id = ? GROUP BY outcome",
+            (run_id,),
+        )
+        retry = {
+            "by_status": {
+                r["status"]: {"c": r["c"], "attempts": r["tot_attempts"]}
+                for r in retry_status
+            },
+            "by_type": [dict(r) for r in retry_by_type],
+            "attempts": {r["outcome"]: r["c"] for r in retry_attempts},
+        }
+
         # Per-attempt step ledger — aggregate per (phase, step): outcomes,
         # how many enti reached the step, and the winning-method / reason mix.
         step_agg = query_db(
@@ -513,6 +555,7 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
                 "errors": [dict(e) for e in errors],
                 "rpct_stats": dict(rpct_stats) if rpct_stats else {},
                 "step_ledger": step_ledger,
+                "retry": retry,
                 "q": q,
                 "status": status,
                 "method": method,

@@ -316,6 +316,42 @@
 </div>
 {% endif %}
 
+{% if retry_q or retry_log %}
+<h3 class="mt-4 mb-3">Retry connessione</h3>
+{% if retry_q %}
+<p class="mb-2">
+    Stato:
+    {% if retry_q.status == 'recovered' %}<span class="badge bg-success">recuperato</span>
+    {% elif retry_q.status == 'exhausted' %}<span class="badge bg-danger">esaurito (falliti tutti)</span>
+    {% else %}<span class="badge bg-primary">in coda</span>{% endif %}
+    &middot; tentativi: <strong>{{ retry_q.attempts }}</strong>
+    {% if retry_q.status == 'pending' and retry_q.next_retry_at %} &middot; prossimo: <code>{{ retry_q.next_retry_at[:16] }}</code>{% endif %}
+    &middot; causa: <code>{{ retry_q.error_type }}</code>
+</p>
+{% endif %}
+{% if retry_log %}
+<div class="table-responsive mb-3">
+    <table class="table table-sm" style="font-size:.88rem">
+        <thead><tr><th>#</th><th>Quando</th><th>Causa</th><th class="text-center">Esito</th><th>Dettaglio</th></tr></thead>
+        <tbody>
+            {% for r in retry_log %}
+            <tr>
+                <td>{{ r.attempt }}</td>
+                <td><small>{{ r.attempted_at[:16] }}</small></td>
+                <td><code class="small">{{ r.error_type }}</code></td>
+                <td class="text-center">
+                    {% if r.outcome == 'recovered' %}<span class="badge bg-success">recuperato</span>
+                    {% else %}<span class="badge bg-danger">fallito</span>{% endif %}
+                </td>
+                <td><small>{% if r.outcome == 'recovered' %}HTTP {{ r.http_status }}{% else %}{{ r.new_error or '' }}{% endif %}</small></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endif %}
+
 {% if steps %}
 <h3 class="mt-4 mb-3">Registro Step (ultima scansione)</h3>
 <p class="text-muted small">Ogni tentativo eseguito su questo ente, per fase e step, con metodo ed esito.</p>
