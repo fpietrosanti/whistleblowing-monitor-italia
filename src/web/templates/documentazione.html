@@ -53,7 +53,57 @@ adottiamo:</p>
 effettiva sì. Indicativamente non più di <strong>2–3 passaggi</strong> dalla homepage; oltre, o con
 denominazioni non espresse, l'accessibilità del canale può essere contestata.</p>
 
-<h2 class="h4 mt-4">3. Metodologia di monitoraggio</h2>
+<h2 class="h4 mt-4">3. Validazione del contenuto della pagina whistleblowing</h2>
+<p>Individuare un link «whistleblowing» non basta: verifichiamo che la pagina sia
+<em>effettivamente</em> la sezione di segnalazione, analizzandone il contenuto (non un semplice
+match testuale). <span class="badge bg-secondary">Metodologia di validazione v1.0 — 2026-06-16</span></p>
+
+<p class="mb-1"><strong>Segnali fondamentali (CORE)</strong> — necessari per confermare:</p>
+<ul>
+    <li><strong>Tema esplicito</strong> — «whistleblowing», «segnalazione illeciti»,
+        «D.Lgs. 24/2023», «tutela del segnalante».</li>
+    <li><strong>Canale di segnalazione reale e utilizzabile</strong> <em>(requisito necessario)</em> —
+        un link a una piattaforma (es. GlobaLeaks, segnalazioni.net), una email/PEC dedicata, o un
+        form: un <em>modo concreto</em> per segnalare, non solo testo descrittivo.</li>
+    <li><strong>RPCT / soggetto gestore</strong> indicato (chi riceve le segnalazioni).</li>
+</ul>
+<p class="mb-1"><strong>Segnali di rafforzamento (SUPPORTING)</strong> — aumentano la confidenza:</p>
+<ul>
+    <li>Canale esterno <strong>ANAC</strong> menzionato.</li>
+    <li><strong>Tutele</strong>: riservatezza, divieto di ritorsioni, protezione dell'identità.</li>
+    <li><strong>Presupposti</strong>: cosa si può segnalare (illeciti, violazioni, corruzione).</li>
+    <li>Distinzione <strong>segnalazione ordinaria vs whistleblowing</strong> (ANAC 311/2023).</li>
+    <li>Modalità di <strong>anonimato</strong>; <strong>procedura</strong>/istruzioni o PDF.</li>
+</ul>
+<p class="mb-1"><strong>Segnali negativi</strong> — abbassano o escludono:</p>
+<ul>
+    <li>«Segnalazione disservizi/guasti», «segnala un problema» senza contesto anticorruzione.</li>
+    <li>Pagina «contatti» generica; solo un PDF senza informazioni in pagina.</li>
+</ul>
+
+<p class="mb-1"><strong>Esiti della validazione</strong>:</p>
+<div class="table-responsive">
+<table class="table">
+    <tbody>
+        <tr class="table-success"><td><strong>Confermata</strong></td><td>Tema esplicito <strong>e</strong> canale reale utilizzabile presenti.</td></tr>
+        <tr class="table-warning"><td><strong>Informativa (senza canale)</strong></td><td>Tema e segnali di rafforzamento presenti, ma nessun canale linkato → pagina presente ma incompleta.</td></tr>
+        <tr class="table-danger"><td><strong>Falso positivo</strong></td><td>Solo keyword (menu/footer) o prevalenza di segnali negativi → non è la sezione whistleblowing.</td></tr>
+    </tbody>
+</table>
+</div>
+<p class="text-muted small">La validazione è applicata sia dal validatore Claude (legge la pagina e
+applica i criteri) sia dal detector automatico Python, in modo coerente.</p>
+
+<div class="border rounded p-2 bg-light small mb-2">
+    <strong>Versione &amp; changelog della metodologia di validazione</strong>
+    <ul class="mb-0 ps-3">
+        <li><strong>v1.0</strong> (2026-06-16) — prima definizione: CORE (tema + canale reale necessario
+            + RPCT), SUPPORTING, NEGATIVE; tre esiti (confermata / informativa-senza-canale / falso
+            positivo). Le revisioni future saranno elencate qui.</li>
+    </ul>
+</div>
+
+<h2 class="h4 mt-4">4. Metodologia di monitoraggio</h2>
 <p>Per ogni ente nel registro IndicePA misuriamo, in modo tracciabile e ripetibile:</p>
 <ol>
     <li><strong>Pipeline di connessione</strong> — dal totale enti al «bucket netto»: con sito indicato →
