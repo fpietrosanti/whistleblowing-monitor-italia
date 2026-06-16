@@ -264,7 +264,8 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
                 SUM(has_tema) tema, SUM(has_canale) canale, SUM(has_rpct) rpct,
                 SUM(has_anac) anac, SUM(has_tutele) tutele,
                 SUM(has_presupposti) presupposti, SUM(has_distinzione) distinzione,
-                SUM(has_anonimato) anonimato, SUM(has_procedura) procedura
+                SUM(has_anonimato) anonimato, SUM(has_procedura) procedura,
+                SUM(has_privacy) privacy, SUM(has_legge) legge
                FROM wbpa_quality""",
             one=True,
         )

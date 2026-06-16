@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 
-VERSION = "v1.0"
+VERSION = "v1.1"
 
 # Known WB platform domains: a link here = a real, usable reporting channel.
 PLATFORM_DOMAINS = (
@@ -63,6 +63,27 @@ _ANONIMATO = re.compile(r"anonim", re.IGNORECASE)
 _PROC_KW = re.compile(
     r"procedura|regolamento|disciplina|policy|istruzion|linee\s+guida", re.IGNORECASE
 )
+# Procedure described on-page (not only as a PDF)
+_PROC_TEXT = re.compile(
+    r"gestione\s+delle\s+segnalazioni|procedura\s+(?:per\s+)?(?:la\s+)?segnalazion|"
+    r"come\s+(?:effettuare\s+una\s+|si\s+)?segnala|iter\s+della\s+segnalazione|"
+    r"fasi\s+della\s+segnalazione",
+    re.IGNORECASE,
+)
+# Privacy notice / data-protection information
+_PRIVACY = re.compile(
+    r"informativa\s+(?:sulla\s+)?privacy|informativa\s+(?:sul\s+)?trattamento|"
+    r"trattamento\s+dei\s+dati|protezione\s+dei\s+dati\s+personali|\bgdpr\b|"
+    r"reg(?:olamento)?\.?\s*(?:ue\s*)?(?:n\.?\s*)?2016/679|privacy\s+policy",
+    re.IGNORECASE,
+)
+# Explicit legal references
+_LEGGE = re.compile(
+    r"d\.?\s?lgs\.?\s*(?:n\.?\s*)?24/2023|decreto\s+legislativo\s+(?:n\.?\s*)?24|"
+    r"art\.?\s*54[\-\s]?bis|l\.?\s*(?:n\.?\s*)?190/2012|legge\s+190|"
+    r"riferimenti\s+normativi|direttiva\s+\(?ue\)?\s*2019/1937",
+    re.IGNORECASE,
+)
 
 
 def _has_real_channel(soup: BeautifulSoup, text: str) -> bool:
@@ -83,7 +104,11 @@ def _has_real_channel(soup: BeautifulSoup, text: str) -> bool:
     return False
 
 
-def _has_procedura(soup: BeautifulSoup) -> bool:
+def _has_procedura(soup: BeautifulSoup, text: str) -> bool:
+    # Procedure described on the page itself...
+    if _PROC_TEXT.search(text):
+        return True
+    # ...or linked as a PDF.
     for a in soup.find_all("a", href=True):
         href = a["href"].lower()
         txt = a.get_text(" ", strip=True)
@@ -112,7 +137,9 @@ def analyze_wb_content(html: str, base_url: str = "") -> dict:
         "has_presupposti": bool(_PRESUPPOSTI.search(text)),
         "has_distinzione": bool(_DISTINZIONE.search(text)),
         "has_anonimato": bool(_ANONIMATO.search(text)),
-        "has_procedura": _has_procedura(soup),
+        "has_procedura": _has_procedura(soup, text),
+        "has_privacy": bool(_PRIVACY.search(text)),
+        "has_legge": bool(_LEGGE.search(text)),
     }
     supporting = sum(
         flags[k]
@@ -123,6 +150,8 @@ def analyze_wb_content(html: str, base_url: str = "") -> dict:
             "has_distinzione",
             "has_anonimato",
             "has_procedura",
+            "has_privacy",
+            "has_legge",
         )
     )
     score = sum(1 for v in flags.values() if v)

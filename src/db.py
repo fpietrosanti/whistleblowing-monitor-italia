@@ -267,6 +267,8 @@ CREATE TABLE IF NOT EXISTS wbpa_quality (
     has_distinzione  INTEGER,
     has_anonimato    INTEGER,
     has_procedura    INTEGER,
+    has_privacy      INTEGER,
+    has_legge        INTEGER,
     score            INTEGER,
     outcome          TEXT,   -- confermata | informativa | falso_positivo
     checked_at       TEXT

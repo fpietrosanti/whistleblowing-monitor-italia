@@ -35,6 +35,8 @@ _QFIELDS = (
     "has_distinzione",
     "has_anonimato",
     "has_procedura",
+    "has_privacy",
+    "has_legge",
 )
 
 

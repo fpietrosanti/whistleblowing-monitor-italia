@@ -34,7 +34,7 @@
         </div>
         <p class="text-muted small mb-2">Presenza degli elementi qualitativi sul totale analizzato:</p>
         <div class="row g-2">
-            {% set els = [('Tema esplicito', qe.tema),('Canale reale', qe.canale),('RPCT', qe.rpct),('ANAC', qe.anac),('Tutele', qe.tutele),('Presupposti', qe.presupposti),('Distinzione ord./WB', qe.distinzione),('Anonimato', qe.anonimato),('Procedura/PDF', qe.procedura)] %}
+            {% set els = [('Tema / cos\'è il WB', qe.tema),('Canale interno reale', qe.canale),('Canale esterno (ANAC)', qe.anac),('Riferimenti di legge', qe.legge),('Procedura segnalazioni', qe.procedura),('Informativa privacy', qe.privacy),('RPCT', qe.rpct),('Tutele', qe.tutele),('Presupposti', qe.presupposti),('Distinzione ord./WB', qe.distinzione),('Anonimato', qe.anonimato)] %}
             {% for label, val in els %}
             <div class="col-md-4">
                 <div class="d-flex justify-content-between"><small>{{ label }}</small><small class="fw-bold">{{ ((val or 0) / qe.tot * 100)|round(0)|int }}%</small></div>
@@ -108,7 +108,7 @@
                     {% elif r.q_outcome == 'informativa' %}<span class="badge bg-warning text-dark">informativa</span>
                     {% elif r.q_outcome == 'falso_positivo' %}<span class="badge bg-danger">falso pos.</span>
                     {% else %}—{% endif %}
-                    {% if r.q_score is not none %}<small class="text-muted">{{ r.q_score }}/9</small>{% endif %}
+                    {% if r.q_score is not none %}<small class="text-muted">{{ r.q_score }}/11</small>{% endif %}
                 </td>
                 <td>{% if r.cod_amm %}<a href="/dettaglio/{{ r.cod_amm }}">{{ r.cod_amm }}</a>{% else %}<small class="text-muted">non ric.</small>{% endif %}</td>
             </tr>
