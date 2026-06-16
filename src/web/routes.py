@@ -34,6 +34,8 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
         software = get_software_distribution()
         by_region = get_region_breakdown()
         scan_info = get_latest_scan_info()
+        net_bucket = compute_net_bucket()
+        click_depth = get_click_depth_dist()
         return templates.TemplateResponse(
             request,
             "index.html",
@@ -42,6 +44,8 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
                 "software": software,
                 "by_region": by_region,
                 "scan_info": scan_info,
+                "net_bucket": net_bucket,
+                "click_depth": click_depth,
             },
         )
 
@@ -709,6 +713,49 @@ def compute_dashboard_kpi():
         "policy_visibile": row["policy_visibile"],
         "pct_policy_visibile": round((row["policy_visibile"] or 0) / t * 100, 1),
     }
+
+
+def compute_net_bucket():
+    """Net bucket = sites that respond HTTP 200; WB metrics relative to it."""
+    run_id = _best_run_id()
+    row = query_db(
+        """
+        SELECT
+            (SELECT COUNT(*) FROM pa WHERE sito_web != '') AS con_sito,
+            SUM(CASE WHEN site_reachable=1 AND site_http_status=200 THEN 1 ELSE 0 END) AS net,
+            SUM(CASE WHEN site_http_status=200 AND wb_section_found=1 THEN 1 ELSE 0 END) AS wb,
+            SUM(CASE WHEN site_http_status=200 AND wb_digital_channel=1 THEN 1 ELSE 0 END) AS channel,
+            SUM(CASE WHEN site_http_status=200 AND wb_anonymous_allowed=1 THEN 1 ELSE 0 END) AS anon
+        FROM pa_scan WHERE scan_run_id = ?
+        """,
+        (run_id,),
+        one=True,
+    )
+    if not row:
+        return {}
+    net = row["net"] or 0
+    base = net or 1
+    return {
+        "con_sito": row["con_sito"] or 0,
+        "net": net,
+        "wb": row["wb"] or 0,
+        "channel": row["channel"] or 0,
+        "anon": row["anon"] or 0,
+        "pct_wb": round((row["wb"] or 0) / base * 100, 1),
+        "pct_channel": round((row["channel"] or 0) / base * 100, 1),
+        "pct_anon": round((row["anon"] or 0) / base * 100, 1),
+    }
+
+
+def get_click_depth_dist():
+    run_id = _best_run_id()
+    rows = query_db(
+        "SELECT wb_click_depth AS d, COUNT(*) c FROM pa_scan "
+        "WHERE scan_run_id = ? AND wb_section_found = 1 "
+        "GROUP BY wb_click_depth ORDER BY wb_click_depth",
+        (run_id,),
+    )
+    return [{"depth": r["d"], "c": r["c"]} for r in rows]
 
 
 def get_software_distribution():

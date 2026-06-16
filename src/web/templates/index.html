@@ -5,12 +5,64 @@
 {% block content %}
 <div class="row mb-4">
     <div class="col-12">
-        <h1 class="mb-1">Dashboard</h1>
+        <h1 class="mb-1">Whistleblowing Monitor Italia</h1>
+        <p class="text-muted mb-1">Stato di attuazione dei canali digitali di segnalazione (D.Lgs. 24/2023) nelle PA italiane.
+            <a href="/documentazione">Metodologia e base normativa</a> &middot;
+            <a href="/opendata">Open Data</a></p>
         {% if scan_info %}
-        <p class="text-muted">Ultima scansione: {{ scan_info.started_at[:10] }} &middot; {{ kpi.totale|default(0) }} enti analizzati</p>
+        <p class="text-muted small">Ultima scansione: {{ scan_info.started_at[:10] }} &middot; {{ kpi.totale|default(0) }} enti analizzati</p>
         {% endif %}
     </div>
 </div>
+
+{# Net bucket headline: WB metrics on the sites that actually respond (HTTP 200) #}
+{% if net_bucket and net_bucket.net %}
+<div class="card card-bg mb-4 border-start border-success border-4">
+    <div class="card-body">
+        <h5 class="card-title">Sui {{ "{:,}".format(net_bucket.net).replace(",", ".") }} siti raggiungibili (HTTP 200)</h5>
+        <p class="text-muted small mb-3">Bucket netto: le PA il cui sito risponde correttamente. È il denominatore su cui ha senso valutare la conformità.</p>
+        <div class="row text-center g-3">
+            <div class="col-md-4">
+                <div class="h2 mb-0 text-info">{{ net_bucket.pct_wb }}%</div>
+                <small class="text-muted">ha una <strong>sezione whistleblowing</strong></small>
+                <div class="small text-muted">{{ "{:,}".format(net_bucket.wb).replace(",", ".") }} PA</div>
+            </div>
+            <div class="col-md-4">
+                <div class="h2 mb-0 text-success">{{ net_bucket.pct_channel }}%</div>
+                <small class="text-muted">ha un <strong>canale digitale</strong> di segnalazione</small>
+                <div class="small text-muted">{{ "{:,}".format(net_bucket.channel).replace(",", ".") }} PA</div>
+            </div>
+            <div class="col-md-4">
+                <div class="h2 mb-0 text-warning">{{ net_bucket.pct_anon }}%</div>
+                <small class="text-muted">consente la <strong>segnalazione anonima</strong></small>
+                <div class="small text-muted">{{ "{:,}".format(net_bucket.anon).replace(",", ".") }} PA</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# Click depth: accessibility of the WB section (legal criterion) #}
+{% if click_depth %}
+{% set cd_tot = click_depth | sum(attribute='c') %}
+<div class="card card-bg mb-4">
+    <div class="card-body">
+        <h5 class="card-title">Accessibilità: click dalla homepage alla pagina di segnalazione</h5>
+        <p class="text-muted small mb-3">Quanti click servono per raggiungere la sezione whistleblowing (1 ottimale; 4+ o nascosta = contestabile — <a href="/documentazione">criterio</a>).</p>
+        <div class="row text-center g-2">
+            {% for cd in click_depth %}
+            <div class="col">
+                <div class="border rounded p-2 {% if cd.depth == 1 %}border-success{% elif cd.depth and cd.depth >= 4 %}border-danger{% endif %}">
+                    <div class="h4 mb-0">{{ (cd.c / cd_tot * 100)|round(0)|int }}%</div>
+                    <small class="text-muted d-block">{% if cd.depth %}{{ cd.depth }} click{% else %}solo URL diretto{% endif %}</small>
+                    <small class="text-muted">{{ cd.c }} PA</small>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
 
 {% if kpi %}
 <div class="row g-3 mb-4">
