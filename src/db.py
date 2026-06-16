@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS pa_scan (
     wb_policy_pdf_path      TEXT,
     wb_policy_pdf_hash      TEXT,
     discovery_method        TEXT,
+    wb_click_depth          INTEGER,
     scan_duration_s         REAL,
     notes                   TEXT
 );

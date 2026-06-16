@@ -75,6 +75,14 @@
                             <td>{% if s0 and s0.discovery_method and s0.discovery_method != 'none' %}<code class="small">{{ s0.discovery_method }}</code>{% else %}—{% endif %}</td>
                             <td>{% if gold and gold.methods %}<code class="small">{{ gold.methods }}</code>{% else %}—{% endif %}</td>
                         </tr>
+                        <tr>
+                            <th>Click dalla homepage</th>
+                            <td>
+                                {% if s0 and s0.wb_click_depth %}<span class="badge {% if s0.wb_click_depth == 1 %}bg-success{% elif s0.wb_click_depth == 2 %}bg-primary{% else %}bg-warning text-dark{% endif %}">{{ s0.wb_click_depth }} click</span>
+                                {% elif s0 and s0.wb_section_found %}<small class="text-muted">solo URL diretto</small>{% else %}—{% endif %}
+                            </td>
+                            <td>—</td>
+                        </tr>
                     </tbody>
                 </table>
                 {% if gold %}

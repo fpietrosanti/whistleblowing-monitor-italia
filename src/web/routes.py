@@ -536,6 +536,15 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
             "http_200": fr.get("http_200", 0) or 0,
         }
 
+        # Click-depth distribution: clicks from homepage to the WB page.
+        cd_rows = query_db(
+            "SELECT wb_click_depth AS d, COUNT(*) c FROM pa_scan "
+            "WHERE scan_run_id = ? AND wb_section_found = 1 "
+            "GROUP BY wb_click_depth ORDER BY wb_click_depth",
+            (run_id,),
+        )
+        click_depth = [{"depth": r["d"], "c": r["c"]} for r in cd_rows]
+
         # Per-attempt step ledger — aggregate per (phase, step): outcomes,
         # how many enti reached the step, and the winning-method / reason mix.
         step_agg = query_db(
@@ -606,6 +615,7 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
                 "step_ledger": step_ledger,
                 "retry": retry,
                 "conn_funnel": conn_funnel,
+                "click_depth": click_depth,
                 "q": q,
                 "status": status,
                 "method": method,

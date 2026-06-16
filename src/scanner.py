@@ -8,8 +8,10 @@ Entry points:
 import argparse
 import asyncio
 import logging
+import re
 import time
 from datetime import datetime, timezone
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
@@ -118,7 +120,7 @@ def _save_pa_scan(scan_run_id: int, cod_amm: str, results: dict):
                 wb_email, wb_phone,
                 wb_policy_visible, wb_policy_url,
                 wb_policy_pdf_path, wb_policy_pdf_hash,
-                discovery_method,
+                discovery_method, wb_click_depth,
                 scan_duration_s, notes
             ) VALUES (
                 ?, ?, ?,
@@ -132,7 +134,7 @@ def _save_pa_scan(scan_run_id: int, cod_amm: str, results: dict):
                 ?, ?,
                 ?, ?,
                 ?, ?,
-                ?,
+                ?, ?,
                 ?, ?
             )""",
             (
@@ -166,10 +168,59 @@ def _save_pa_scan(scan_run_id: int, cod_amm: str, results: dict):
                 results.get("wb_policy_pdf_path"),
                 results.get("wb_policy_pdf_hash"),
                 results.get("discovery_method"),
+                results.get("wb_click_depth"),
                 results.get("scan_duration_s"),
                 results.get("notes"),
             ),
         )
+
+
+_HREF_RE = re.compile(r"""href\s*=\s*["']([^"'#]+)["']""", re.IGNORECASE)
+
+
+def _url_in_homepage(wb_url: str, homepage_html: str, base_url: str) -> bool:
+    """True if wb_url is directly linked from the homepage (=> 1 click)."""
+    if not (wb_url and homepage_html):
+        return False
+    target = wb_url.rstrip("/").lower()
+    target_path = urlparse(target).path
+    for href in _HREF_RE.findall(homepage_html):
+        try:
+            absu = urljoin(base_url, href.strip()).rstrip("/").lower()
+        except Exception:
+            continue
+        if absu == target:
+            return True
+        if target_path and target_path != "/" and absu.endswith(target_path):
+            return True
+    return False
+
+
+def _click_depth(method: str, wb_url: str, homepage_html: str, base_url: str):
+    """Estimate clicks from homepage to the WB page (None if not navigable).
+
+    Navigational strategies report their traversal depth directly; URL-guess /
+    sitemap / Google hits are checked against the homepage links (depth 1 if
+    directly linked, else unknown = reachable only by direct URL).
+    """
+    if not method or method == "none" or not wb_url:
+        return None
+    if method.startswith("menu_crawl"):
+        return 1
+    if method == "at_drilldown:at_page":
+        return 1
+    if method.startswith("at_drilldown:L1"):
+        return 2
+    if method.startswith("at_drilldown:L2"):
+        return 3
+    if method.startswith("container:"):
+        return 2 if ">" in method else 1
+    if method.startswith("deep_crawl"):
+        return 2
+    # guess_url / sitemap / google_fallback: infer from homepage links
+    if _url_in_homepage(wb_url, homepage_html, base_url):
+        return 1
+    return None
 
 
 def _save_steps_safe(scan_run_id: int, cod_amm: str, steps: list):
@@ -350,6 +401,14 @@ async def scan_single_pa(
         results["wb_section_found"] = discovery.get("wb_section_found", 0)
         results["wb_section_url"] = discovery.get("wb_section_url")
         results["discovery_method"] = discovery.get("discovery_method", "none")
+        # clicks from homepage to the WB page (accessibility metric)
+        if results["wb_section_found"]:
+            results["wb_click_depth"] = _click_depth(
+                results["discovery_method"],
+                results["wb_section_url"],
+                homepage_html,
+                site_url,
+            )
         # record every discovery strategy attempt (per-attempt ledger)
         steps.extend(discovery.get("attempts", []))
 
