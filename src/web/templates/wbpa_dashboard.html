@@ -21,6 +21,31 @@
 <p class="text-muted small">Stato live dei link non ancora calcolato — eseguire <code>tools/wbpa_check.py</code>.</p>
 {% endif %}
 
+{# Analisi qualitativa (rubrica v1.0) sulle pagine pubbliche #}
+{% set qe = quality.el %}
+{% if qe and qe.tot %}
+<div class="card card-bg mb-4">
+    <div class="card-body">
+        <h5 class="card-title">Analisi qualitativa delle pagine ({{ qe.tot }} analizzate) — <a href="/documentazione">rubrica v1.0</a></h5>
+        <div class="row text-center g-2 mb-3">
+            <div class="col"><div class="border rounded p-2 border-success"><div class="h4 mb-0 text-success">{{ quality.outcomes.get('confermata', 0) }}</div><small class="text-muted">confermate</small></div></div>
+            <div class="col"><div class="border rounded p-2 border-warning"><div class="h4 mb-0 text-warning">{{ quality.outcomes.get('informativa', 0) }}</div><small class="text-muted">informative (senza canale)</small></div></div>
+            <div class="col"><div class="border rounded p-2 border-danger"><div class="h4 mb-0 text-danger">{{ quality.outcomes.get('falso_positivo', 0) }}</div><small class="text-muted">falso positivo</small></div></div>
+        </div>
+        <p class="text-muted small mb-2">Presenza degli elementi qualitativi sul totale analizzato:</p>
+        <div class="row g-2">
+            {% set els = [('Tema esplicito', qe.tema),('Canale reale', qe.canale),('RPCT', qe.rpct),('ANAC', qe.anac),('Tutele', qe.tutele),('Presupposti', qe.presupposti),('Distinzione ord./WB', qe.distinzione),('Anonimato', qe.anonimato),('Procedura/PDF', qe.procedura)] %}
+            {% for label, val in els %}
+            <div class="col-md-4">
+                <div class="d-flex justify-content-between"><small>{{ label }}</small><small class="fw-bold">{{ ((val or 0) / qe.tot * 100)|round(0)|int }}%</small></div>
+                <div class="progress" style="height:6px;"><div class="progress-bar {% if 'Canale' in label or 'Tema' in label %}bg-success{% else %}bg-info{% endif %}" style="width: {{ (val or 0) / qe.tot * 100 }}%"></div></div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <form method="get" action="/p/{{ token }}/whistleblowingpa" class="row g-2 mb-3">
     <div class="col-md-4"><input type="text" name="q" class="form-control" placeholder="Cerca ente o CF…" value="{{ q }}"></div>
     <div class="col-md-3">
@@ -29,6 +54,14 @@
             <option value="Registrata" {% if stato=='Registrata' %}selected{% endif %}>Registrata</option>
             <option value="Cancellata" {% if stato=='Cancellata' %}selected{% endif %}>Cancellata</option>
             <option value="Non registrata" {% if stato=='Non registrata' %}selected{% endif %}>Non registrata</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <select name="outcome" class="form-select">
+            <option value="">Qualsiasi esito qualità</option>
+            <option value="confermata" {% if outcome=='confermata' %}selected{% endif %}>Confermata</option>
+            <option value="informativa" {% if outcome=='informativa' %}selected{% endif %}>Informativa (senza canale)</option>
+            <option value="falso_positivo" {% if outcome=='falso_positivo' %}selected{% endif %}>Falso positivo</option>
         </select>
     </div>
     <div class="col-md-2"><button class="btn btn-primary w-100">Filtra</button></div>
@@ -42,6 +75,7 @@
                 <th>Ente</th><th>Regione</th><th>Stato</th>
                 <th>Canale (whistleblowing.it)</th>
                 <th>Pagina sul sito ente</th>
+                <th>Qualità</th>
                 <th>PA</th>
             </tr>
         </thead>
@@ -68,6 +102,13 @@
                     {% if r.public_active == 1 %}<span class="badge bg-success">attivo</span>
                     {% elif r.public_active == 0 %}<span class="badge bg-danger">errore {{ r.public_http or '' }}</span>{% endif %}
                     {% else %}—{% endif %}
+                </td>
+                <td>
+                    {% if r.q_outcome == 'confermata' %}<span class="badge bg-success">confermata</span>
+                    {% elif r.q_outcome == 'informativa' %}<span class="badge bg-warning text-dark">informativa</span>
+                    {% elif r.q_outcome == 'falso_positivo' %}<span class="badge bg-danger">falso pos.</span>
+                    {% else %}—{% endif %}
+                    {% if r.q_score is not none %}<small class="text-muted">{{ r.q_score }}/9</small>{% endif %}
                 </td>
                 <td>{% if r.cod_amm %}<a href="/dettaglio/{{ r.cod_amm }}">{{ r.cod_amm }}</a>{% else %}<small class="text-muted">non ric.</small>{% endif %}</td>
             </tr>

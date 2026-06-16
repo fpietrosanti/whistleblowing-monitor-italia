@@ -255,6 +255,24 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
         )
         status_by_type = {r["link_type"]: dict(r) for r in st}
 
+        # Qualitative analysis stats (rubric v1.0)
+        q_outcomes = query_db(
+            "SELECT outcome, COUNT(*) c FROM wbpa_quality GROUP BY outcome"
+        )
+        q_el = query_db(
+            """SELECT COUNT(*) tot,
+                SUM(has_tema) tema, SUM(has_canale) canale, SUM(has_rpct) rpct,
+                SUM(has_anac) anac, SUM(has_tutele) tutele,
+                SUM(has_presupposti) presupposti, SUM(has_distinzione) distinzione,
+                SUM(has_anonimato) anonimato, SUM(has_procedura) procedura
+               FROM wbpa_quality""",
+            one=True,
+        )
+        quality = {
+            "outcomes": {r["outcome"]: r["c"] for r in q_outcomes},
+            "el": dict(q_el) if q_el else {},
+        }
+
         per_page = 100
         filters, params = [], []
         if q:
@@ -263,6 +281,12 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
         if stato:
             filters.append("piat_stato = ?")
             params.append(stato)
+        outcome = request.query_params.get("outcome", "")
+        if outcome:
+            filters.append(
+                "EXISTS (SELECT 1 FROM wbpa_quality qq WHERE qq.wbpa_id=wbpa_registry.id AND qq.outcome=?)"
+            )
+            params.append(outcome)
         where = ("WHERE " + " AND ".join(filters)) if filters else ""
 
         total = query_db(
@@ -276,9 +300,10 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
             SELECT r.*,
                 (SELECT s.active FROM wbpa_status s WHERE s.wbpa_id=r.id AND s.link_type='piat' ORDER BY s.id DESC LIMIT 1) piat_active,
                 (SELECT s.http_status FROM wbpa_status s WHERE s.wbpa_id=r.id AND s.link_type='piat' ORDER BY s.id DESC LIMIT 1) piat_http,
-                (SELECT s.error FROM wbpa_status s WHERE s.wbpa_id=r.id AND s.link_type='piat' ORDER BY s.id DESC LIMIT 1) piat_error,
                 (SELECT s.active FROM wbpa_status s WHERE s.wbpa_id=r.id AND s.link_type='public' ORDER BY s.id DESC LIMIT 1) public_active,
-                (SELECT s.http_status FROM wbpa_status s WHERE s.wbpa_id=r.id AND s.link_type='public' ORDER BY s.id DESC LIMIT 1) public_http
+                (SELECT s.http_status FROM wbpa_status s WHERE s.wbpa_id=r.id AND s.link_type='public' ORDER BY s.id DESC LIMIT 1) public_http,
+                (SELECT q.outcome FROM wbpa_quality q WHERE q.wbpa_id=r.id ORDER BY q.id DESC LIMIT 1) q_outcome,
+                (SELECT q.score FROM wbpa_quality q WHERE q.wbpa_id=r.id ORDER BY q.id DESC LIMIT 1) q_score
             FROM wbpa_registry r
             {where}
             ORDER BY r.denominazione
@@ -294,9 +319,11 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
                 "token": token,
                 "summary": dict(summary) if summary else {},
                 "status_by_type": status_by_type,
+                "quality": quality,
                 "rows": [dict(r) for r in rows],
                 "q": q,
                 "stato": stato,
+                "outcome": outcome,
                 "page": page,
                 "total_pages": total_pages,
                 "total_count": total_count,
