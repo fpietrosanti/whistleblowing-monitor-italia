@@ -251,6 +251,29 @@ CREATE TABLE IF NOT EXISTS wbpa_status (
 );
 
 CREATE INDEX IF NOT EXISTS idx_wbpa_status_id ON wbpa_status(wbpa_id);
+
+-- Qualitative content analysis of WhistleblowingPA pages (rubric v1.0):
+-- which required/supporting elements are present, plus the outcome.
+CREATE TABLE IF NOT EXISTS wbpa_quality (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    wbpa_id          INTEGER NOT NULL REFERENCES wbpa_registry(id),
+    url              TEXT,
+    has_tema         INTEGER,
+    has_canale       INTEGER,
+    has_rpct         INTEGER,
+    has_anac         INTEGER,
+    has_tutele       INTEGER,
+    has_presupposti  INTEGER,
+    has_distinzione  INTEGER,
+    has_anonimato    INTEGER,
+    has_procedura    INTEGER,
+    score            INTEGER,
+    outcome          TEXT,   -- confermata | informativa | falso_positivo
+    checked_at       TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_wbpa_quality_id ON wbpa_quality(wbpa_id);
+CREATE INDEX IF NOT EXISTS idx_wbpa_quality_outcome ON wbpa_quality(outcome);
 """
 
 
