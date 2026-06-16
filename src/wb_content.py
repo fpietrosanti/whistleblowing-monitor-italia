@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 
-VERSION = "v1.2"
+VERSION = "v1.3"
 
 # Known WB platform domains: a link here = a real, usable reporting channel.
 PLATFORM_DOMAINS = (
@@ -100,6 +100,14 @@ _INTERNAL_ONLY = re.compile(
 )
 
 
+# A dedicated mailbox local-part signals a real WB email channel (vs generic
+# info@/urp@). Calibrated against Claude gold (v1.3): generic mailto/form no
+# longer count as a channel.
+_DEDICATED_BOX = re.compile(
+    r"(whistleblow|segnalazion|anticorruzione|rpct|odv|illecit)", re.IGNORECASE
+)
+
+
 def _platform_link(soup: BeautifulSoup) -> bool:
     """True if the page links/embeds a known public WB platform."""
     for a in soup.find_all("a", href=True):
@@ -111,14 +119,31 @@ def _platform_link(soup: BeautifulSoup) -> bool:
     return False
 
 
+def _has_tema_strong(soup: BeautifulSoup, text: str) -> bool:
+    """Topic must be the page's SUBJECT (title/heading or repeated), not a lone
+    footer/menu link — kills homepage/index false positives (v1.3)."""
+    title = soup.title.get_text(" ", strip=True) if soup.title else ""
+    if _TEMA.search(title):
+        return True
+    for h in soup.find_all(["h1", "h2", "h3"]):
+        if _TEMA.search(h.get_text(" ", strip=True)):
+            return True
+    return len(_TEMA.findall(text)) >= 2
+
+
 def _has_real_channel(soup: BeautifulSoup, text: str) -> bool:
+    # Public WB platform link/iframe — the strong signal.
     if _platform_link(soup):
         return True
+    # Dedicated WB mailbox (not a generic info@/urp@).
     for a in soup.find_all("a", href=True):
-        if a["href"].lower().startswith("mailto:"):
+        href = a["href"].lower()
+        if href.startswith("mailto:") and _DEDICATED_BOX.search(href.split("@")[0]):
             return True
-    if soup.find("form"):
-        return True
+    # A form that is plausibly a reporting form (WB context in/around it).
+    for f in soup.find_all("form"):
+        if _TEMA.search(f.get_text(" ", strip=True)):
+            return True
     return False
 
 
@@ -158,7 +183,7 @@ def analyze_wb_content(html: str, base_url: str = "") -> dict:
         text = ""
 
     flags = {
-        "has_tema": bool(_TEMA.search(text)),
+        "has_tema": _has_tema_strong(soup, text),
         "has_canale": _has_real_channel(soup, text),
         "has_canale_aperto": _has_canale_aperto(soup, text),
         "has_rpct": bool(_RPCT.search(text)),
