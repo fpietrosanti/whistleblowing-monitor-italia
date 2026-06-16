@@ -23,6 +23,7 @@ from src.browser import (
 )
 from src.config import MAX_PARALLEL, USER_AGENT
 from src.db import get_db, init_db, save_pa_steps
+from src.fetcher import have_impersonation, make_client
 from src.discovery import discover_wb_section
 from src.exporter import export_all
 from src.fingerprint import fingerprint_software
@@ -681,17 +682,13 @@ async def run_full_scan(
     semaphore = asyncio.Semaphore(max_parallel)
     browser_initialized = False
 
-    # Scale the HTTP connection pool with the concurrency, otherwise the pool
-    # (not the semaphore) becomes the bottleneck at high --max-parallel.
-    async with httpx.AsyncClient(
-        timeout=httpx.Timeout(15.0),
-        limits=httpx.Limits(
-            max_connections=max(max_parallel + 10, 20),
-            max_keepalive_connections=max(max_parallel // 2, 10),
-        ),
-        max_redirects=5,
-        headers={"User-Agent": USER_AGENT},
-        follow_redirects=True,
+    # Chrome-impersonating client (curl_cffi) defeats fingerprint-WAFs; falls
+    # back to httpx if curl_cffi is unavailable.
+    logger.info(
+        "HTTP engine: %s", "curl_cffi(chrome)" if have_impersonation() else "httpx"
+    )
+    async with make_client(
+        timeout=15.0, headers={"User-Agent": USER_AGENT}
     ) as http_client:
 
         async def _scan_with_semaphore(cod_amm: str, site_url: str) -> dict:

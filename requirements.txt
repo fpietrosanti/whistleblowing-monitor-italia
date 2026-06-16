@@ -8,3 +8,4 @@ pandas>=2.2
 openpyxl>=3.1
 aiosqlite>=0.20
 python-multipart>=0.0.9
+curl_cffi>=0.7

@@ -13,7 +13,12 @@ INDICEPA_RESOURCE_ID = "d09adf99-dc10-4349-8c53-27b1e5aa97b6"
 
 MAX_PARALLEL = 5
 
-USER_AGENT = "Mozilla/5.0 (compatible; WhistleblowingMonitorItalia/1.0; +https://test.infosecurity.ch)"
+# Real Chrome UA — paired with curl_cffi Chrome impersonation (src/fetcher.py)
+# so the TLS/HTTP2 fingerprint matches the UA and fingerprint-WAFs don't block us.
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
 
 for d in (DB_DIR, EXPORTS_DIR, POLICIES_DIR):
     d.mkdir(parents=True, exist_ok=True)

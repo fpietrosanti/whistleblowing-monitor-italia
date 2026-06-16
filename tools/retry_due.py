@@ -24,11 +24,10 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
-import httpx
-
 from src.browser import close_browser, init_browser
 from src.config import USER_AGENT
 from src.db import get_db, init_db, query_db
+from src.fetcher import make_client
 from src.scanner import scan_single_pa
 
 logging.basicConfig(
@@ -186,19 +185,10 @@ async def _run(
     await init_browser()
     sem = asyncio.Semaphore(max_parallel)
 
-    client_kwargs = dict(
-        timeout=httpx.Timeout(25.0),
-        limits=httpx.Limits(
-            max_connections=max_parallel + 5, max_keepalive_connections=10
-        ),
-        headers={"User-Agent": USER_AGENT},
-        follow_redirects=True,
-        max_redirects=5,
-    )
-    if proxy:
-        # Re-scan blocked/timeout sites from a different egress IP (VPN/proxy).
-        client_kwargs["proxy"] = proxy
-    async with httpx.AsyncClient(**client_kwargs) as client:
+    # Chrome-impersonating client; proxy routes through a VPN/residential egress.
+    async with make_client(
+        timeout=25.0, headers={"User-Agent": USER_AGENT}, proxy=proxy
+    ) as client:
 
         async def _one(item: dict):
             async with sem:
