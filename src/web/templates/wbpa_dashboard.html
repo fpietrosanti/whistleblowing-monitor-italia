@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% set active_page = "none" %}
+{% block title %}WhistleblowingPA (privato){% endblock %}
+
+{% block content %}
+<div class="alert alert-warning py-2 small mb-3">🔒 Dashboard privata — registro WhistleblowingPA (whistleblowing.it / GlobaLeaks). Non condividere il link.</div>
+<h1 class="mb-3">Registro WhistleblowingPA</h1>
+
+{% set s = summary %}
+{% set piat = status_by_type.get('piat', {}) %}
+{% set pub = status_by_type.get('public', {}) %}
+<div class="row text-center g-2 mb-4">
+    <div class="col"><div class="border rounded p-2"><div class="h4 mb-0">{{ s.tot or 0 }}</div><small class="text-muted">enti</small></div></div>
+    <div class="col"><div class="border rounded p-2"><div class="h4 mb-0 text-success">{{ s.registrate or 0 }}</div><small class="text-muted">registrate</small></div></div>
+    <div class="col"><div class="border rounded p-2"><div class="h4 mb-0 text-danger">{{ s.cancellate or 0 }}</div><small class="text-muted">cancellate</small></div></div>
+    <div class="col"><div class="border rounded p-2"><div class="h4 mb-0">{{ s.riconciliati or 0 }}</div><small class="text-muted">riconciliati a PA</small></div></div>
+    <div class="col"><div class="border rounded p-2"><div class="h4 mb-0">{{ s.con_pagina_pubblica or 0 }}</div><small class="text-muted">con pagina pubblica</small></div></div>
+    <div class="col"><div class="border rounded p-2 border-success"><div class="h4 mb-0 text-success">{{ piat.attive or 0 }}</div><small class="text-muted">canali attivi{% if piat.controllati %} / {{ piat.controllati }}{% endif %}</small></div></div>
+</div>
+{% if not piat.controllati %}
+<p class="text-muted small">Stato live dei link non ancora calcolato — eseguire <code>tools/wbpa_check.py</code>.</p>
+{% endif %}
+
+<form method="get" action="/p/{{ token }}/whistleblowingpa" class="row g-2 mb-3">
+    <div class="col-md-4"><input type="text" name="q" class="form-control" placeholder="Cerca ente o CF…" value="{{ q }}"></div>
+    <div class="col-md-3">
+        <select name="stato" class="form-select">
+            <option value="">Tutti gli stati</option>
+            <option value="Registrata" {% if stato=='Registrata' %}selected{% endif %}>Registrata</option>
+            <option value="Cancellata" {% if stato=='Cancellata' %}selected{% endif %}>Cancellata</option>
+            <option value="Non registrata" {% if stato=='Non registrata' %}selected{% endif %}>Non registrata</option>
+        </select>
+    </div>
+    <div class="col-md-2"><button class="btn btn-primary w-100">Filtra</button></div>
+</form>
+
+<p class="text-muted small">{{ total_count }} risultati</p>
+<div class="table-responsive">
+    <table class="table table-sm align-middle" style="font-size:.85rem">
+        <thead class="table-light">
+            <tr>
+                <th>Ente</th><th>Regione</th><th>Stato</th>
+                <th>Canale (whistleblowing.it)</th>
+                <th>Pagina sul sito ente</th>
+                <th>PA</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+            <tr>
+                <td>{{ r.denominazione }}<br><small class="text-muted">{{ r.cf }}</small></td>
+                <td><small>{{ r.regione }}</small></td>
+                <td>
+                    {% if r.piat_stato == 'Registrata' %}<span class="badge bg-success">{{ r.piat_stato }}</span>
+                    {% elif r.piat_stato == 'Cancellata' %}<span class="badge bg-danger">{{ r.piat_stato }}</span>
+                    {% else %}<span class="badge bg-secondary">{{ r.piat_stato or '—' }}</span>{% endif %}
+                </td>
+                <td>
+                    {% if r.piat_link %}
+                    <a href="{{ r.piat_link }}" target="_blank" rel="noopener" class="d-inline-block text-truncate" style="max-width:220px;">{{ r.piat_link }}</a>
+                    {% if r.piat_active == 1 %}<span class="badge bg-success">attivo</span>
+                    {% elif r.piat_active == 0 %}<span class="badge bg-danger">errore {{ r.piat_http or '' }}</span>{% endif %}
+                    {% else %}—{% endif %}
+                </td>
+                <td>
+                    {% if r.piat_public_link %}
+                    <a href="{{ r.piat_public_link }}" target="_blank" rel="noopener" class="d-inline-block text-truncate" style="max-width:220px;">{{ r.piat_public_link }}</a>
+                    {% if r.public_active == 1 %}<span class="badge bg-success">attivo</span>
+                    {% elif r.public_active == 0 %}<span class="badge bg-danger">errore {{ r.public_http or '' }}</span>{% endif %}
+                    {% else %}—{% endif %}
+                </td>
+                <td>{% if r.cod_amm %}<a href="/dettaglio/{{ r.cod_amm }}">{{ r.cod_amm }}</a>{% else %}<small class="text-muted">non ric.</small>{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if total_pages > 1 %}
+<nav><ul class="pagination justify-content-center">
+    <li class="page-item {% if page<=1 %}disabled{% endif %}"><a class="page-link" href="/p/{{ token }}/whistleblowingpa?q={{ q }}&stato={{ stato }}&page={{ page-1 }}">Prec</a></li>
+    <li class="page-item disabled"><span class="page-link">{{ page }} / {{ total_pages }}</span></li>
+    <li class="page-item {% if page>=total_pages %}disabled{% endif %}"><a class="page-link" href="/p/{{ token }}/whistleblowingpa?q={{ q }}&stato={{ stato }}&page={{ page+1 }}">Succ</a></li>
+</ul></nav>
+{% endif %}
+{% endblock %}

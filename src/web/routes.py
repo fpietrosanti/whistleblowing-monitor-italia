@@ -1,8 +1,9 @@
 """Web routes for dashboard, search, detail, open data, trends."""
 
+import os
 from pathlib import Path
 
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -11,6 +12,17 @@ from src.db import query_db
 
 ARCHIVE_ROOT = DATA_DIR / "archive"
 _ARCHIVE_ALLOWED = {"screenshot.png", "links.json", "homepage.html", "meta.json"}
+
+
+def _priv_token():
+    """Secret token for private (non-public) dashboards, from env or file."""
+    t = os.environ.get("WB_PRIV_TOKEN")
+    if t:
+        return t.strip()
+    f = DATA_DIR / "priv_token.txt"
+    if f.exists():
+        return f.read_text().strip()
+    return None
 
 
 def _latest_archive(cod_amm: str):
@@ -211,6 +223,85 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
     @app.get("/documentazione")
     async def documentazione(request: Request):
         return templates.TemplateResponse(request, "documentazione.html", {})
+
+    @app.get("/p/{token}/whistleblowingpa")
+    async def wbpa_dashboard(
+        request: Request,
+        token: str,
+        q: str = Query(""),
+        stato: str = Query(""),
+        attive: str = Query(""),
+        page: int = Query(1, ge=1),
+    ):
+        real = _priv_token()
+        if not real or token != real:
+            raise HTTPException(status_code=404)
+
+        # Summary
+        summary = query_db(
+            """
+            SELECT COUNT(*) tot,
+                SUM(CASE WHEN piat_stato='Registrata' THEN 1 ELSE 0 END) registrate,
+                SUM(CASE WHEN piat_stato='Cancellata' THEN 1 ELSE 0 END) cancellate,
+                SUM(CASE WHEN cod_amm IS NOT NULL THEN 1 ELSE 0 END) riconciliati,
+                SUM(CASE WHEN piat_public_link != '' THEN 1 ELSE 0 END) con_pagina_pubblica
+            FROM wbpa_registry
+            """,
+            one=True,
+        )
+        st = query_db(
+            "SELECT link_type, SUM(active) attive, COUNT(*) controllati "
+            "FROM wbpa_status GROUP BY link_type",
+        )
+        status_by_type = {r["link_type"]: dict(r) for r in st}
+
+        per_page = 100
+        filters, params = [], []
+        if q:
+            filters.append("(denominazione LIKE ? OR cf LIKE ?)")
+            params += [f"%{q}%", f"%{q}%"]
+        if stato:
+            filters.append("piat_stato = ?")
+            params.append(stato)
+        where = ("WHERE " + " AND ".join(filters)) if filters else ""
+
+        total = query_db(
+            f"SELECT COUNT(*) c FROM wbpa_registry {where}", params, one=True
+        )
+        total_count = total["c"] if total else 0
+        total_pages = max(1, (total_count + per_page - 1) // per_page)
+
+        rows = query_db(
+            f"""
+            SELECT r.*,
+                (SELECT s.active FROM wbpa_status s WHERE s.wbpa_id=r.id AND s.link_type='piat' ORDER BY s.id DESC LIMIT 1) piat_active,
+                (SELECT s.http_status FROM wbpa_status s WHERE s.wbpa_id=r.id AND s.link_type='piat' ORDER BY s.id DESC LIMIT 1) piat_http,
+                (SELECT s.error FROM wbpa_status s WHERE s.wbpa_id=r.id AND s.link_type='piat' ORDER BY s.id DESC LIMIT 1) piat_error,
+                (SELECT s.active FROM wbpa_status s WHERE s.wbpa_id=r.id AND s.link_type='public' ORDER BY s.id DESC LIMIT 1) public_active,
+                (SELECT s.http_status FROM wbpa_status s WHERE s.wbpa_id=r.id AND s.link_type='public' ORDER BY s.id DESC LIMIT 1) public_http
+            FROM wbpa_registry r
+            {where}
+            ORDER BY r.denominazione
+            LIMIT ? OFFSET ?
+            """,
+            params + [per_page, (page - 1) * per_page],
+        )
+
+        return templates.TemplateResponse(
+            request,
+            "wbpa_dashboard.html",
+            {
+                "token": token,
+                "summary": dict(summary) if summary else {},
+                "status_by_type": status_by_type,
+                "rows": [dict(r) for r in rows],
+                "q": q,
+                "stato": stato,
+                "page": page,
+                "total_pages": total_pages,
+                "total_count": total_count,
+            },
+        )
 
     @app.get("/archive/{archive_date}/{cod_amm}/{fname}")
     async def archive_file(archive_date: str, cod_amm: str, fname: str):
