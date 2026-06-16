@@ -275,6 +275,26 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
             "el": dict(q_el) if q_el else {},
         }
 
+        # Health of the WB page URL they gave us (piat_public_link): is it still
+        # good? = online (HTTP 200) AND content still confirmed as a WB page.
+        link_health = query_db(
+            """
+            SELECT
+                COUNT(*) tot,
+                SUM(CASE WHEN pub=1 AND outcome='confermata' THEN 1 ELSE 0 END) buoni,
+                SUM(CASE WHEN COALESCE(pub,0)=0 THEN 1 ELSE 0 END) offline,
+                SUM(CASE WHEN pub=1 AND COALESCE(outcome,'')<>'confermata' THEN 1 ELSE 0 END) non_wb
+            FROM (
+                SELECT r.id,
+                    (SELECT s.active FROM wbpa_status s WHERE s.wbpa_id=r.id AND s.link_type='public' ORDER BY s.id DESC LIMIT 1) pub,
+                    (SELECT q.outcome FROM wbpa_quality q WHERE q.wbpa_id=r.id ORDER BY q.id DESC LIMIT 1) outcome
+                FROM wbpa_registry r WHERE r.piat_public_link LIKE 'http%'
+            )
+            """,
+            one=True,
+        )
+        link_health = dict(link_health) if link_health else {}
+
         per_page = 100
         filters, params = [], []
         if q:
@@ -289,6 +309,18 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
                 "EXISTS (SELECT 1 FROM wbpa_quality qq WHERE qq.wbpa_id=wbpa_registry.id AND qq.outcome=?)"
             )
             params.append(outcome)
+        # Health filter on the provided WB-page link (piat_public_link).
+        salute = request.query_params.get("salute", "")
+        _pub = "(SELECT s.active FROM wbpa_status s WHERE s.wbpa_id=wbpa_registry.id AND s.link_type='public' ORDER BY s.id DESC LIMIT 1)"
+        _out = "(SELECT q.outcome FROM wbpa_quality q WHERE q.wbpa_id=wbpa_registry.id ORDER BY q.id DESC LIMIT 1)"
+        if salute == "buono":
+            filters.append(f"{_pub}=1 AND {_out}='confermata'")
+        elif salute == "offline":
+            filters.append(
+                f"wbpa_registry.piat_public_link LIKE 'http%' AND COALESCE({_pub},0)=0"
+            )
+        elif salute == "non_wb":
+            filters.append(f"{_pub}=1 AND COALESCE({_out},'')<>'confermata'")
         where = ("WHERE " + " AND ".join(filters)) if filters else ""
 
         total = query_db(
@@ -322,10 +354,12 @@ def register_routes(app: FastAPI, templates: Jinja2Templates):
                 "summary": dict(summary) if summary else {},
                 "status_by_type": status_by_type,
                 "quality": quality,
+                "link_health": link_health,
                 "rows": [dict(r) for r in rows],
                 "q": q,
                 "stato": stato,
                 "outcome": outcome,
+                "salute": salute,
                 "page": page,
                 "total_pages": total_pages,
                 "total_count": total_count,

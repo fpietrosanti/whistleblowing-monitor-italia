@@ -6,6 +6,20 @@
 <div class="alert alert-warning py-2 small mb-3">🔒 Dashboard privata — registro WhistleblowingPA (whistleblowing.it / GlobaLeaks). Non condividere il link.</div>
 <h1 class="mb-3">Registro WhistleblowingPA</h1>
 
+{% if link_health and link_health.tot %}
+<div class="card card-bg mb-4 border-start border-4 border-primary">
+    <div class="card-body">
+        <h5 class="card-title mb-1">Salute dei link della pagina WB forniti ({{ link_health.tot }})</h5>
+        <p class="text-muted small mb-2">Il link che ci hanno fornito è ancora buono? = pagina <strong>online (HTTP 200)</strong> <strong>e</strong> contenuto ancora <strong>confermato</strong> come pagina whistleblowing.</p>
+        <div class="row text-center">
+            <div class="col"><div class="h2 mb-0 text-success">{{ link_health.buoni or 0 }}</div><small class="text-muted">ancora buoni</small></div>
+            <div class="col"><div class="h2 mb-0 text-danger">{{ link_health.offline or 0 }}</div><small class="text-muted">offline / non raggiungibili</small></div>
+            <div class="col"><div class="h2 mb-0 text-warning">{{ link_health.non_wb or 0 }}</div><small class="text-muted">online ma non più pagina WB</small></div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% set s = summary %}
 {% set piat = status_by_type.get('piat', {}) %}
 {% set pub = status_by_type.get('public', {}) %}
@@ -57,10 +71,18 @@
         </select>
     </div>
     <div class="col-md-3">
+        <select name="salute" class="form-select">
+            <option value="">Link fornito: qualsiasi</option>
+            <option value="buono" {% if salute=='buono' %}selected{% endif %}>Ancora buono</option>
+            <option value="offline" {% if salute=='offline' %}selected{% endif %}>Offline</option>
+            <option value="non_wb" {% if salute=='non_wb' %}selected{% endif %}>Online ma non più WB</option>
+        </select>
+    </div>
+    <div class="col-md-2">
         <select name="outcome" class="form-select">
-            <option value="">Qualsiasi esito qualità</option>
+            <option value="">Esito qualità</option>
             <option value="confermata" {% if outcome=='confermata' %}selected{% endif %}>Confermata</option>
-            <option value="informativa" {% if outcome=='informativa' %}selected{% endif %}>Informativa (senza canale)</option>
+            <option value="informativa" {% if outcome=='informativa' %}selected{% endif %}>Informativa</option>
             <option value="falso_positivo" {% if outcome=='falso_positivo' %}selected{% endif %}>Falso positivo</option>
         </select>
     </div>
@@ -75,6 +97,7 @@
                 <th>Ente</th><th>Regione</th><th>Stato</th>
                 <th>Canale (whistleblowing.it)</th>
                 <th>Pagina sul sito ente</th>
+                <th>Esito link fornito</th>
                 <th>Qualità</th>
                 <th>PA</th>
             </tr>
@@ -102,6 +125,12 @@
                     {% if r.public_active == 1 %}<span class="badge bg-success">attivo</span>
                     {% elif r.public_active == 0 %}<span class="badge bg-danger">errore {{ r.public_http or '' }}</span>{% endif %}
                     {% else %}—{% endif %}
+                </td>
+                <td>
+                    {% if not r.piat_public_link %}<small class="text-muted">—</small>
+                    {% elif r.public_active != 1 %}<span class="badge bg-danger">offline</span>
+                    {% elif r.q_outcome == 'confermata' %}<span class="badge bg-success">buono</span>
+                    {% else %}<span class="badge bg-warning text-dark">non più WB</span>{% endif %}
                 </td>
                 <td>
                     {% if r.q_outcome == 'confermata' %}<span class="badge bg-success">confermata</span>
