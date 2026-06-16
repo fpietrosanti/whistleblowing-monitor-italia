@@ -306,7 +306,9 @@ async def scan_single_pa(
 
         except httpx.HTTPError as exc:
             results["site_reachable"] = 0
-            results["site_error"] = str(exc)[:500]
+            # Timeout exceptions stringify to '' — fall back to the type name so
+            # the reason is never blank in diagnostics.
+            results["site_error"] = (str(exc) or type(exc).__name__)[:500]
             steps.append(
                 {
                     "phase": "discovery",
