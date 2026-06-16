@@ -260,6 +260,7 @@ CREATE TABLE IF NOT EXISTS wbpa_quality (
     url              TEXT,
     has_tema         INTEGER,
     has_canale       INTEGER,
+    has_canale_aperto INTEGER,
     has_rpct         INTEGER,
     has_anac         INTEGER,
     has_tutele       INTEGER,

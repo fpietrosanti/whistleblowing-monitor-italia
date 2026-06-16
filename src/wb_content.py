@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 
-VERSION = "v1.1"
+VERSION = "v1.2"
 
 # Known WB platform domains: a link here = a real, usable reporting channel.
 PLATFORM_DOMAINS = (
@@ -84,23 +84,52 @@ _LEGGE = re.compile(
     r"riferimenti\s+normativi|direttiva\s+\(?ue\)?\s*2019/1937",
     re.IGNORECASE,
 )
+# Channel open also to EXTERNAL reporters (not only internal staff): the page
+# names non-employee categories of segnalanti.
+_AUDIENCE_EXT = re.compile(
+    r"collaborator|fornitor|consulent|lavorator\w*\s+autonom|tirocinant|volontari|"
+    r"liberi\s+professionisti|soggetti\s+terzi|anche.{0,20}estern|chiunque|stagista|"
+    r"ex\s+dipendent|candidat|appaltator|subappaltator",
+    re.IGNORECASE,
+)
+# Channel restricted to internal staff only (intranet / entity credentials).
+_INTERNAL_ONLY = re.compile(
+    r"riservat\w*\s+(?:ai|al)\s+(?:dipendenti|personale)|solo.{0,10}dipendenti|"
+    r"credenziali\s+aziendali|area\s+riservata|accesso\s+riservato|intranet",
+    re.IGNORECASE,
+)
 
 
-def _has_real_channel(soup: BeautifulSoup, text: str) -> bool:
-    # A link to a known WB platform...
+def _platform_link(soup: BeautifulSoup) -> bool:
+    """True if the page links/embeds a known public WB platform."""
     for a in soup.find_all("a", href=True):
-        href = a["href"].lower()
-        if any(d in href for d in PLATFORM_DOMAINS):
+        if any(d in a["href"].lower() for d in PLATFORM_DOMAINS):
             return True
-        if href.startswith("mailto:"):
-            return True
-    # ...or an on-page reporting form.
-    if soup.find("form"):
-        return True
-    # ...or an embedded platform iframe.
     for ifr in soup.find_all("iframe", src=True):
         if any(d in ifr["src"].lower() for d in PLATFORM_DOMAINS):
             return True
+    return False
+
+
+def _has_real_channel(soup: BeautifulSoup, text: str) -> bool:
+    if _platform_link(soup):
+        return True
+    for a in soup.find_all("a", href=True):
+        if a["href"].lower().startswith("mailto:"):
+            return True
+    if soup.find("form"):
+        return True
+    return False
+
+
+def _has_canale_aperto(soup: BeautifulSoup, text: str) -> bool:
+    """True if the channel appears open also to EXTERNAL reporters (not only
+    internal staff): a public platform (no entity-credential gate) or the page
+    names non-employee categories of segnalanti."""
+    if _platform_link(soup):
+        return True
+    if _AUDIENCE_EXT.search(text) and not _INTERNAL_ONLY.search(text):
+        return True
     return False
 
 
@@ -131,8 +160,8 @@ def analyze_wb_content(html: str, base_url: str = "") -> dict:
     flags = {
         "has_tema": bool(_TEMA.search(text)),
         "has_canale": _has_real_channel(soup, text),
+        "has_canale_aperto": _has_canale_aperto(soup, text),
         "has_rpct": bool(_RPCT.search(text)),
-        "has_anac": bool(_ANAC.search(text)),
         "has_tutele": bool(_TUTELE.search(text)),
         "has_presupposti": bool(_PRESUPPOSTI.search(text)),
         "has_distinzione": bool(_DISTINZIONE.search(text)),
@@ -144,7 +173,7 @@ def analyze_wb_content(html: str, base_url: str = "") -> dict:
     supporting = sum(
         flags[k]
         for k in (
-            "has_anac",
+            "has_canale_aperto",
             "has_tutele",
             "has_presupposti",
             "has_distinzione",

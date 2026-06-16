@@ -28,8 +28,8 @@ logger = logging.getLogger("wbpa_quality")
 _QFIELDS = (
     "has_tema",
     "has_canale",
+    "has_canale_aperto",
     "has_rpct",
-    "has_anac",
     "has_tutele",
     "has_presupposti",
     "has_distinzione",
